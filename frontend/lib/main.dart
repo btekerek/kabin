@@ -12,7 +12,7 @@ class KabinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'Kabin',
       home: Scaffold(
         body: Center(child: Text('Kabin — scaffold')),
