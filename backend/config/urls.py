@@ -2,8 +2,7 @@
 Root URL configuration.
 
 Infra endpoints (health check, OpenAPI schema/docs) plus feature endpoints
-as each vertical slice is built. Auth is the first slice; sessions come
-next.
+as each vertical slice is built.
 """
 
 from django.contrib import admin
@@ -23,5 +22,5 @@ urlpatterns = [
         name="swagger-ui",
     ),
     path("api/auth/", include("apps.accounts.urls")),
-    # path("api/sessions/", include("apps.sessions.urls")),  # next slice
+    path("api/sessions/", include("apps.sessions.urls")),
 ]
