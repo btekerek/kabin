@@ -55,7 +55,8 @@ class DioClientFactory {
 
             final retryOptions = error.requestOptions;
             retryOptions.extra['retried'] = true;
-            retryOptions.headers['Authorization'] = 'Bearer ${newTokens.access}';
+            retryOptions.headers['Authorization'] =
+                'Bearer ${newTokens.access}';
 
             final response = await dio.fetch(retryOptions);
             handler.resolve(response);
