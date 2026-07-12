@@ -128,6 +128,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "EXCEPTION_HANDLER": "apps.core.exceptions.kabin_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {
+        # Join codes are short and guessable by design (see codes.py) -
+        # this is the one public, unauthenticated lookup surface, so it
+        # gets its own rate limit. See ADR-002.
+        "session-lookup": "20/min",
+    },
 }
 
 SIMPLE_JWT = {
@@ -160,6 +166,7 @@ else:
 
 AGORA_APP_ID = os.environ.get("AGORA_APP_ID", "")
 AGORA_APP_CERTIFICATE = os.environ.get("AGORA_APP_CERTIFICATE", "")
+AGORA_TOKEN_TTL_SECONDS = int(os.environ.get("AGORA_TOKEN_TTL_SECONDS", "3600"))
 
 SESSION_LISTENER_CAP_DEFAULT = int(os.environ.get("SESSION_LISTENER_CAP_DEFAULT", "500"))
 

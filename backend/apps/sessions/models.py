@@ -10,9 +10,13 @@ here).
 
 Status is a small state machine, not a free-form field: not_started ->
 active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to). ChannelInterpreter, Message, RaiseHandEntry,
-and SessionListener belong to later slices (interpreter assignment, chat,
+Session.can_transition_to). ChannelInterpreter, Message, and
+RaiseHandEntry belong to later slices (interpreter assignment, chat,
 Q&A) and intentionally aren't here yet.
+
+ListenerSession tracks anonymous listener joins (see ADR-002) - one row
+per (session, listener_uuid), used to enforce the listener cap and to
+let a listener switch channels without losing/re-spending their spot.
 """
 
 from django.conf import settings
@@ -67,3 +71,33 @@ class Channel(models.Model):
 
     def __str__(self):
         return f"{self.language} ({'source' if self.is_source else 'target'})"
+
+    @property
+    def agora_channel_name(self) -> str:
+        """Stable, opaque Agora channel identity - see ADR-002."""
+        return f"kabin-ch-{self.id}"
+
+
+class ListenerSession(models.Model):
+    """One row per listener who has ever joined a session (see ADR-002).
+
+    `channel` is which language they're currently listening to; joining
+    again with the same `listener_uuid` updates this row rather than
+    creating a new one, so switching channels doesn't cost the listener
+    a second seat against the session's listener cap.
+    """
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="listener_sessions")
+    listener_uuid = models.UUIDField()
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name="+")
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "listener_uuid"], name="unique_listener_per_session"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.listener_uuid} in {self.session_id} ({self.channel.language})"

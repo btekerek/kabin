@@ -8,3 +8,4 @@ psycopg2-binary==2.9.9
 django-cors-headers==4.3.1
 drf-spectacular==0.27.2
 python-dotenv==1.0.1
+agora-token-builder==1.0.0

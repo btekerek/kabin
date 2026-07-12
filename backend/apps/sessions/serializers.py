@@ -37,6 +37,33 @@ class SessionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class ListenerChannelSerializer(serializers.ModelSerializer):
+    """Channel info safe to show an anonymous listener - no interpreter_code."""
+
+    class Meta:
+        model = Channel
+        fields = ["id", "language", "is_source"]
+        read_only_fields = fields
+
+
+class SessionLookupSerializer(serializers.ModelSerializer):
+    channels = ListenerChannelSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Session
+        fields = ["id", "name", "status", "channels"]
+        read_only_fields = fields
+
+
+class SessionLookupInputSerializer(serializers.Serializer):
+    listener_code = serializers.CharField(max_length=20)
+
+
+class SessionJoinSerializer(serializers.Serializer):
+    listener_uuid = serializers.UUIDField()
+    channel_id = serializers.IntegerField()
+
+
 class SessionCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
     source_language = serializers.CharField(max_length=10)

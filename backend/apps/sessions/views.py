@@ -12,17 +12,27 @@ rather than a free-form status field, so "ended" can never be walked back
 out of - see models.py for the allowed-transitions table.
 """
 
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.core.exceptions import KabinAPIException
+from apps.sessions.agora import build_listener_token
 from apps.sessions.codes import generate_interpreter_code, generate_listener_code
-from apps.sessions.models import Channel, Session
+from apps.sessions.models import Channel, ListenerSession, Session
 from apps.sessions.permissions import IsGuide, IsSessionOwner
-from apps.sessions.serializers import SessionCreateSerializer, SessionSerializer
+from apps.sessions.serializers import (
+    ListenerChannelSerializer,
+    SessionCreateSerializer,
+    SessionJoinSerializer,
+    SessionLookupInputSerializer,
+    SessionLookupSerializer,
+    SessionSerializer,
+)
 
 
 class SessionListCreateView(generics.ListCreateAPIView):
@@ -98,6 +108,100 @@ class _SessionTransitionView(APIView):
         session.status = self.target_status
         session.save(update_fields=["status"])
         return Response(SessionSerializer(session).data)
+
+
+class SessionLookupView(APIView):
+    """Public: PIN -> session name/status + channel list.
+
+    No auth - listeners aren't Django users. Join codes are short and
+    guessable by design (see codes.py), so this is the one endpoint that
+    risk is real for; it's rate-limited via the "session-lookup" throttle
+    scope (see ADR-002).
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "session-lookup"
+
+    def post(self, request):
+        input_serializer = SessionLookupInputSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        try:
+            session = Session.objects.get(
+                listener_code=input_serializer.validated_data["listener_code"]
+            )
+        except Session.DoesNotExist:
+            raise KabinAPIException(
+                code="SESSION_NOT_FOUND",
+                message="No session matches that code.",
+                status_code=404,
+            ) from None
+
+        return Response(SessionLookupSerializer(session).data)
+
+
+class SessionJoinView(APIView):
+    """Public: listener picks a channel, gets back an Agora audience token.
+
+    Rejoining with the same listener_uuid switches channel instead of
+    spending a second seat against the listener cap - see ADR-002.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk):
+        session = get_object_or_404(Session, pk=pk)
+
+        if session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended and cannot be joined.",
+                status_code=400,
+            )
+
+        input_serializer = SessionJoinSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        listener_uuid = input_serializer.validated_data["listener_uuid"]
+        channel = get_object_or_404(
+            Channel, pk=input_serializer.validated_data["channel_id"], session=session
+        )
+
+        with transaction.atomic():
+            # Lock the session row so concurrent joins against the same
+            # session serialize around the capacity check below.
+            Session.objects.select_for_update().get(pk=session.pk)
+
+            existing = (
+                ListenerSession.objects.select_for_update()
+                .filter(session=session, listener_uuid=listener_uuid)
+                .first()
+            )
+            if existing is None:
+                current_count = ListenerSession.objects.filter(session=session).count()
+                if current_count >= settings.SESSION_LISTENER_CAP_DEFAULT:
+                    raise KabinAPIException(
+                        code="LISTENER_CAP_REACHED",
+                        message="This session is at capacity.",
+                        status_code=403,
+                    )
+                ListenerSession.objects.create(
+                    session=session, listener_uuid=listener_uuid, channel=channel
+                )
+            elif existing.channel_id != channel.id:
+                existing.channel = channel
+                existing.save(update_fields=["channel"])
+
+        token = build_listener_token(channel.agora_channel_name, str(listener_uuid))
+        return Response(
+            {
+                "agora_app_id": settings.AGORA_APP_ID,
+                "agora_channel_name": channel.agora_channel_name,
+                "agora_token": token,
+                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+                "channel": ListenerChannelSerializer(channel).data,
+            }
+        )
 
 
 class SessionStartView(_SessionTransitionView):
