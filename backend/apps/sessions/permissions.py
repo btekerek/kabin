@@ -19,3 +19,14 @@ class IsSessionOwner(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return obj.owner_id == request.user.id
+
+
+class IsInterpreter(BasePermission):
+    """Only Interpreter accounts may claim/release channels."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == User.Role.INTERPRETER
+        )
