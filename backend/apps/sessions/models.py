@@ -10,8 +10,8 @@ here).
 
 Status is a small state machine, not a free-form field: not_started ->
 active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to). Message and RaiseHandEntry belong to later
-slices (chat, Q&A) and intentionally aren't here yet.
+Session.can_transition_to). Message belongs to a later slice (chat) and
+intentionally isn't here yet.
 
 ListenerSession tracks anonymous listener joins (see ADR-002) - one row
 per (session, listener_uuid), used to enforce the listener cap and to
@@ -20,6 +20,11 @@ let a listener switch channels without losing/re-spending their spot.
 ChannelInterpreter tracks which interpreter currently owns a channel
 (see ADR-003) - one row per channel, since exactly one interpreter may
 broadcast into a channel at a time.
+
+RaiseHandEntry is the Q&A queue (see ADR-004) - who's waiting to be
+granted the floor. `Session.approved_listener_uuid` (below) is who
+currently *has* the floor; it's a single field, not a table, because
+only one listener can hold it at a time.
 """
 
 from django.conf import settings
@@ -124,3 +129,27 @@ class ChannelInterpreter(models.Model):
 
     def __str__(self):
         return f"{self.interpreter} on {self.channel}"
+
+
+class RaiseHandEntry(models.Model):
+    """One row per listener currently waiting in the Q&A queue (ADR-004).
+
+    Ordered by `created_at` (FIFO). Raising a hand while already queued
+    is a no-op at the view layer, not enforced here beyond the unique
+    constraint preventing a duplicate row.
+    """
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="raised_hands")
+    listener_uuid = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "listener_uuid"], name="unique_raised_hand_per_session"
+            )
+        ]
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.listener_uuid} waiting in {self.session_id}"
