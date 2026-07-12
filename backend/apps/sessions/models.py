@@ -10,13 +10,16 @@ here).
 
 Status is a small state machine, not a free-form field: not_started ->
 active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to). ChannelInterpreter, Message, and
-RaiseHandEntry belong to later slices (interpreter assignment, chat,
-Q&A) and intentionally aren't here yet.
+Session.can_transition_to). Message and RaiseHandEntry belong to later
+slices (chat, Q&A) and intentionally aren't here yet.
 
 ListenerSession tracks anonymous listener joins (see ADR-002) - one row
 per (session, listener_uuid), used to enforce the listener cap and to
 let a listener switch channels without losing/re-spending their spot.
+
+ChannelInterpreter tracks which interpreter currently owns a channel
+(see ADR-003) - one row per channel, since exactly one interpreter may
+broadcast into a channel at a time.
 """
 
 from django.conf import settings
@@ -101,3 +104,23 @@ class ListenerSession(models.Model):
 
     def __str__(self):
         return f"{self.listener_uuid} in {self.session_id} ({self.channel.language})"
+
+
+class ChannelInterpreter(models.Model):
+    """The interpreter currently broadcasting into a channel (see ADR-003).
+
+    `channel` is a OneToOneField, not a ForeignKey: exactly one
+    interpreter may hold a channel at a time. Claiming/releasing is
+    handled in the join/leave views, not here.
+    """
+
+    channel = models.OneToOneField(
+        Channel, on_delete=models.CASCADE, related_name="interpreter_claim"
+    )
+    interpreter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="channel_claims"
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.interpreter} on {self.channel}"

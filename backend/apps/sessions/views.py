@@ -21,11 +21,13 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.core.exceptions import KabinAPIException
-from apps.sessions.agora import build_listener_token
+from apps.sessions.agora import build_interpreter_token, build_listener_token
 from apps.sessions.codes import generate_interpreter_code, generate_listener_code
-from apps.sessions.models import Channel, ListenerSession, Session
-from apps.sessions.permissions import IsGuide, IsSessionOwner
+from apps.sessions.models import Channel, ChannelInterpreter, ListenerSession, Session
+from apps.sessions.permissions import IsGuide, IsInterpreter, IsSessionOwner
 from apps.sessions.serializers import (
+    ChannelSerializer,
+    InterpreterCodeSerializer,
     ListenerChannelSerializer,
     SessionCreateSerializer,
     SessionJoinSerializer,
@@ -202,6 +204,81 @@ class SessionJoinView(APIView):
                 "channel": ListenerChannelSerializer(channel).data,
             }
         )
+
+
+class ChannelJoinView(APIView):
+    """Authenticated (Interpreter role): code -> claim channel + publisher token.
+
+    Claim semantics (see ADR-003): free -> claim it; already yours ->
+    refresh (reconnect case); someone else's -> CHANNEL_ALREADY_STAFFED.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsInterpreter]
+
+    def post(self, request):
+        input_serializer = InterpreterCodeSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        try:
+            channel = Channel.objects.select_related("session").get(
+                interpreter_code=input_serializer.validated_data["interpreter_code"]
+            )
+        except Channel.DoesNotExist:
+            raise KabinAPIException(
+                code="CHANNEL_NOT_FOUND",
+                message="No channel matches that code.",
+                status_code=404,
+            ) from None
+
+        if channel.session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended and cannot be joined.",
+                status_code=400,
+            )
+
+        with transaction.atomic():
+            claim, created = ChannelInterpreter.objects.select_for_update().get_or_create(
+                channel=channel, defaults={"interpreter": request.user}
+            )
+            if not created and claim.interpreter_id != request.user.id:
+                raise KabinAPIException(
+                    code="CHANNEL_ALREADY_STAFFED",
+                    message="Another interpreter is already broadcasting on this channel.",
+                    status_code=409,
+                )
+
+        token = build_interpreter_token(channel.agora_channel_name, str(request.user.id))
+        return Response(
+            {
+                "agora_app_id": settings.AGORA_APP_ID,
+                "agora_channel_name": channel.agora_channel_name,
+                "agora_token": token,
+                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+                "channel": ChannelSerializer(channel).data,
+            }
+        )
+
+
+class ChannelLeaveView(APIView):
+    """Authenticated (Interpreter role): release the caller's own claim.
+
+    A no-op if the caller doesn't currently hold the channel - safe to
+    call defensively without checking state first.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsInterpreter]
+
+    def post(self, request):
+        input_serializer = InterpreterCodeSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        ChannelInterpreter.objects.filter(
+            channel__interpreter_code=input_serializer.validated_data["interpreter_code"],
+            interpreter=request.user,
+        ).delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SessionStartView(_SessionTransitionView):

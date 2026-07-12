@@ -64,6 +64,12 @@ class SessionJoinSerializer(serializers.Serializer):
     channel_id = serializers.IntegerField()
 
 
+class InterpreterCodeSerializer(serializers.Serializer):
+    """Shared input shape for both channel join and leave."""
+
+    interpreter_code = serializers.CharField(max_length=20)
+
+
 class SessionCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
     source_language = serializers.CharField(max_length=10)
