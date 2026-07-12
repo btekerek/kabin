@@ -10,7 +10,7 @@ owns the actual atomic creation.
 
 from rest_framework import serializers
 
-from apps.sessions.models import Channel, Session
+from apps.sessions.models import Channel, RaiseHandEntry, Session
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -68,6 +68,23 @@ class InterpreterCodeSerializer(serializers.Serializer):
     """Shared input shape for both channel join and leave."""
 
     interpreter_code = serializers.CharField(max_length=20)
+
+
+class ListenerUuidSerializer(serializers.Serializer):
+    """Shared input shape for raise-hand, lower-hand, and speak."""
+
+    listener_uuid = serializers.UUIDField()
+
+
+class RaiseHandEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RaiseHandEntry
+        fields = ["listener_uuid", "created_at"]
+        read_only_fields = fields
+
+
+class GrantFloorSerializer(serializers.Serializer):
+    listener_uuid = serializers.UUIDField()
 
 
 class SessionCreateSerializer(serializers.Serializer):
