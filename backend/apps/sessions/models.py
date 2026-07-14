@@ -10,8 +10,7 @@ here).
 
 Status is a small state machine, not a free-form field: not_started ->
 active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to). Message belongs to a later slice (chat) and
-intentionally isn't here yet.
+Session.can_transition_to).
 
 ListenerSession tracks anonymous listener joins (see ADR-002) - one row
 per (session, listener_uuid), used to enforce the listener cap and to
@@ -25,6 +24,9 @@ RaiseHandEntry is the Q&A queue (see ADR-004) - who's waiting to be
 granted the floor. `Session.approved_listener_uuid` (below) is who
 currently *has* the floor; it's a single field, not a table, because
 only one listener can hold it at a time.
+
+Message is chat (see ADR-005) - one table for all three sender kinds,
+since chat rendering needs them interleaved in a single timeline anyway.
 """
 
 from django.conf import settings
@@ -153,3 +155,37 @@ class RaiseHandEntry(models.Model):
 
     def __str__(self):
         return f"{self.listener_uuid} waiting in {self.session_id}"
+
+
+class Message(models.Model):
+    """A single chat message (see ADR-005).
+
+    `sender_kind` discriminates which of `sender` (guide/interpreter,
+    a real User) or `sender_listener_uuid` (listener, anonymous) is
+    populated - exactly one of the two, matching whichever identity
+    model that sender kind uses everywhere else in this app.
+    """
+
+    class SenderKind(models.TextChoices):
+        GUIDE = "guide", "Guide"
+        INTERPRETER = "interpreter", "Interpreter"
+        LISTENER = "listener", "Listener"
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="messages")
+    sender_kind = models.CharField(max_length=20, choices=SenderKind.choices)
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="sent_messages",
+    )
+    sender_listener_uuid = models.UUIDField(null=True, blank=True)
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.sender_kind} message in {self.session_id}"

@@ -12,6 +12,8 @@ rather than a free-form status field, so "ended" can never be walked back
 out of - see models.py for the allowed-transitions table.
 """
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -20,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.accounts.models import User
 from apps.core.exceptions import KabinAPIException
 from apps.sessions.agora import build_floor_token, build_interpreter_token, build_listener_token
 from apps.sessions.codes import generate_interpreter_code, generate_listener_code
@@ -27,16 +30,19 @@ from apps.sessions.models import (
     Channel,
     ChannelInterpreter,
     ListenerSession,
+    Message,
     RaiseHandEntry,
     Session,
 )
-from apps.sessions.permissions import IsGuide, IsInterpreter, IsSessionOwner
+from apps.sessions.permissions import IsGuide, IsInterpreter, IsSessionOwner, IsSessionParticipant
 from apps.sessions.serializers import (
     ChannelSerializer,
     GrantFloorSerializer,
     InterpreterCodeSerializer,
     ListenerChannelSerializer,
     ListenerUuidSerializer,
+    MessageCreateSerializer,
+    MessageSerializer,
     RaiseHandEntrySerializer,
     SessionCreateSerializer,
     SessionJoinSerializer,
@@ -495,3 +501,79 @@ class RevokeFloorView(APIView):
             session.save(update_fields=["approved_listener_uuid"])
 
         return Response(SessionSerializer(session).data)
+
+
+class MessageListCreateView(APIView):
+    """Chat: anyone actually in the session (see IsSessionParticipant) can
+    read history and send. REST is the only write path - sending a
+    message here also pushes it to the "session-<id>-chat" channel-layer
+    group so connected WebSocket clients receive it immediately. See
+    ADR-005 for why the socket itself never accepts client-sent messages.
+
+    permission_classes is AllowAny, not [IsSessionParticipant], and the
+    participant check is called directly below instead of through
+    check_object_permissions. Reason: DRF's permission_denied() turns a
+    failed object permission into 401 (not 403) whenever no authenticator
+    succeeded - which is every anonymous listener request, since none of
+    them present a JWT. Every other listener-facing endpoint in this app
+    sidesteps that DRF quirk by using AllowAny + an explicit
+    KabinAPIException; this one reuses the same IsSessionParticipant
+    logic as a plain function call so the 403 stays a real 403.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def _get_session(self, request, pk):
+        session = get_object_or_404(Session, pk=pk)
+        if not IsSessionParticipant().has_object_permission(request, self, session):
+            raise KabinAPIException(
+                code="NOT_A_PARTICIPANT",
+                message="You are not part of this session.",
+                status_code=403,
+            )
+        return session
+
+    def get(self, request, pk):
+        session = self._get_session(request, pk)
+        messages = Message.objects.filter(session=session)
+        return Response(MessageSerializer(messages, many=True).data)
+
+    def post(self, request, pk):
+        session = self._get_session(request, pk)
+
+        if session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended.",
+                status_code=400,
+            )
+
+        input_serializer = MessageCreateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        body = input_serializer.validated_data["body"]
+
+        user = request.user
+        if user and user.is_authenticated:
+            sender_kind = (
+                Message.SenderKind.GUIDE
+                if user.role == User.Role.GUIDE
+                else Message.SenderKind.INTERPRETER
+            )
+            message = Message.objects.create(
+                session=session, sender_kind=sender_kind, sender=user, body=body
+            )
+        else:
+            message = Message.objects.create(
+                session=session,
+                sender_kind=Message.SenderKind.LISTENER,
+                sender_listener_uuid=input_serializer.validated_data["listener_uuid"],
+                body=body,
+            )
+
+        payload = MessageSerializer(message).data
+        async_to_sync(get_channel_layer().group_send)(
+            f"session-{session.id}-chat",
+            {"type": "chat.message", "message": payload},
+        )
+
+        return Response(payload, status=status.HTTP_201_CREATED)
