@@ -10,7 +10,7 @@ owns the actual atomic creation.
 
 from rest_framework import serializers
 
-from apps.sessions.models import Channel, RaiseHandEntry, Session
+from apps.sessions.models import Channel, Message, RaiseHandEntry, Session
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -85,6 +85,23 @@ class RaiseHandEntrySerializer(serializers.ModelSerializer):
 
 class GrantFloorSerializer(serializers.Serializer):
     listener_uuid = serializers.UUIDField()
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = ["id", "sender_kind", "sender", "sender_listener_uuid", "body", "created_at"]
+        read_only_fields = fields
+
+
+class MessageCreateSerializer(serializers.Serializer):
+    """listener_uuid is only required for anonymous (listener) senders -
+    IsSessionParticipant has already checked it by the time this parses,
+    so this just needs to accept it, not re-derive the sender's identity.
+    """
+
+    body = serializers.CharField(max_length=2000, allow_blank=False)
+    listener_uuid = serializers.UUIDField(required=False)
 
 
 class SessionCreateSerializer(serializers.Serializer):

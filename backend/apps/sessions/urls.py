@@ -3,6 +3,7 @@ from django.urls import path
 from apps.sessions.views import (
     GrantFloorView,
     LowerHandView,
+    MessageListCreateView,
     RaiseHandView,
     RevokeFloorView,
     SessionDetailView,
@@ -32,4 +33,5 @@ urlpatterns = [
     path("<int:pk>/queue/", SessionQueueView.as_view(), name="session-queue"),
     path("<int:pk>/grant-floor/", GrantFloorView.as_view(), name="session-grant-floor"),
     path("<int:pk>/revoke-floor/", RevokeFloorView.as_view(), name="session-revoke-floor"),
+    path("<int:pk>/messages/", MessageListCreateView.as_view(), name="session-messages"),
 ]
