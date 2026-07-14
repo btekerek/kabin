@@ -12,9 +12,12 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.core.views import LanguageListView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", include("apps.core.urls")),
+    path("api/languages/", LanguageListView.as_view(), name="language-list"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",

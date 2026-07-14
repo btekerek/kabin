@@ -10,6 +10,8 @@ owns the actual atomic creation.
 
 from rest_framework import serializers
 
+from apps.core.exceptions import KabinAPIException
+from apps.core.languages import is_supported_language
 from apps.sessions.models import Channel, Message, RaiseHandEntry, Session
 
 
@@ -115,7 +117,21 @@ class SessionCreateSerializer(serializers.Serializer):
         normalized = [lang.upper().strip() for lang in value]
         if len(set(normalized)) != len(normalized):
             raise serializers.ValidationError("target_languages must not contain duplicates.")
+        for language in normalized:
+            if not is_supported_language(language):
+                raise KabinAPIException(
+                    code="UNSUPPORTED_LANGUAGE",
+                    message=f"'{language}' is not a supported language.",
+                    status_code=400,
+                )
         return normalized
 
     def validate_source_language(self, value):
-        return value.upper().strip()
+        normalized = value.upper().strip()
+        if not is_supported_language(normalized):
+            raise KabinAPIException(
+                code="UNSUPPORTED_LANGUAGE",
+                message=f"'{normalized}' is not a supported language.",
+                status_code=400,
+            )
+        return normalized
