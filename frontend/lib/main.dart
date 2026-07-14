@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Scaffold entrypoint. Real app wiring (routing per role, API base URL
-/// via --dart-define=API_BASE_URL, Dio client with token refresh, Agora
-/// engine init) is added starting with the auth vertical slice.
+import 'core/router/app_router.dart';
+
 void main() {
-  runApp(const KabinApp());
+  runApp(const ProviderScope(child: KabinApp()));
 }
 
-class KabinApp extends StatelessWidget {
+class KabinApp extends ConsumerWidget {
   const KabinApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
       title: 'Kabin',
-      home: Scaffold(
-        body: Center(child: Text('Kabin — scaffold')),
-      ),
+      theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+      routerConfig: router,
     );
   }
 }
