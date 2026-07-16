@@ -12,7 +12,8 @@ class ListenerChannel {
   final String language;
   final bool isSource;
 
-  factory ListenerChannel.fromJson(Map<String, dynamic> json) => ListenerChannel(
+  factory ListenerChannel.fromJson(Map<String, dynamic> json) =>
+      ListenerChannel(
         id: json['id'] as int,
         language: json['language'] as String,
         isSource: json['is_source'] as bool,

@@ -71,7 +71,8 @@ class _ListeningScreenState extends State<ListeningScreen> {
               StreamBuilder<AgoraConnectionStatus>(
                 stream: _controller.statusStream,
                 initialData: _controller.status,
-                builder: (context, snapshot) => Text(_statusLabel(snapshot.data)),
+                builder: (context, snapshot) =>
+                    Text(_statusLabel(snapshot.data)),
               ),
               if (_connectError != null) ...[
                 const SizedBox(height: 16),

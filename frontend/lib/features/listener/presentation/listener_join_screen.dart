@@ -37,8 +37,9 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
       _error = null;
     });
     try {
-      final session =
-          await ref.read(listenerRepositoryProvider).lookup(_pinController.text.trim());
+      final session = await ref
+          .read(listenerRepositoryProvider)
+          .lookup(_pinController.text.trim());
       setState(() => _session = session);
     } catch (error) {
       setState(() => _error = error);
@@ -81,7 +82,9 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
       appBar: AppBar(title: const Text('Join a session')),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: _session == null ? _buildPinEntry() : _buildChannelPicker(_session!),
+        child: _session == null
+            ? _buildPinEntry()
+            : _buildChannelPicker(_session!),
       ),
     );
   }
@@ -111,7 +114,9 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
           onPressed: _busy ? null : _lookup,
           child: _busy
               ? const SizedBox(
-                  height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Find session'),
         ),
       ],
@@ -140,7 +145,9 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
               final channel = session.channels[index];
               return ListTile(
                 title: Text(channel.language),
-                subtitle: channel.isSource ? const Text('Original (stage) audio') : null,
+                subtitle: channel.isSource
+                    ? const Text('Original (stage) audio')
+                    : null,
                 trailing: const Icon(Icons.chevron_right),
                 enabled: !_busy,
                 onTap: () => _joinChannel(channel),

@@ -1,4 +1,5 @@
-import '../../sessions/domain/session.dart' show SessionStatus, sessionStatusFromJson;
+import '../../sessions/domain/session.dart'
+    show SessionStatus, sessionStatusFromJson;
 import 'listener_channel.dart';
 
 /// What a PIN lookup returns to an anonymous listener
@@ -18,12 +19,14 @@ class ListenerSessionSummary {
   final SessionStatus status;
   final List<ListenerChannel> channels;
 
-  factory ListenerSessionSummary.fromJson(Map<String, dynamic> json) => ListenerSessionSummary(
+  factory ListenerSessionSummary.fromJson(Map<String, dynamic> json) =>
+      ListenerSessionSummary(
         id: json['id'] as int,
         name: json['name'] as String,
         status: sessionStatusFromJson(json['status'] as String),
         channels: (json['channels'] as List<dynamic>)
-            .map((entry) => ListenerChannel.fromJson(entry as Map<String, dynamic>))
+            .map((entry) =>
+                ListenerChannel.fromJson(entry as Map<String, dynamic>))
             .toList(),
       );
 }

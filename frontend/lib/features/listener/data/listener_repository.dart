@@ -16,7 +16,8 @@ class ListenerRepository {
     final response = await _dio.post('/api/sessions/lookup/', data: {
       'listener_code': listenerCode,
     });
-    return ListenerSessionSummary.fromJson(response.data as Map<String, dynamic>);
+    return ListenerSessionSummary.fromJson(
+        response.data as Map<String, dynamic>);
   }
 
   /// Joins a specific channel within [sessionId] as [listenerUuid].

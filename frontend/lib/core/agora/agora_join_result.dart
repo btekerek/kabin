@@ -19,7 +19,8 @@ class AgoraJoinResult {
   final String agoraToken;
   final int expiresIn;
 
-  factory AgoraJoinResult.fromJson(Map<String, dynamic> json) => AgoraJoinResult(
+  factory AgoraJoinResult.fromJson(Map<String, dynamic> json) =>
+      AgoraJoinResult(
         agoraAppId: json['agora_app_id'] as String,
         agoraChannelName: json['agora_channel_name'] as String,
         agoraToken: json['agora_token'] as String,

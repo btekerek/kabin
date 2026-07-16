@@ -68,10 +68,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/unsupported-role',
         builder: (context, state) => const RoleNotSupportedScreen(),
       ),
-      GoRoute(path: '/join', builder: (context, state) => const ListenerJoinScreen()),
+      GoRoute(
+          path: '/join',
+          builder: (context, state) => const ListenerJoinScreen()),
       GoRoute(
         path: '/listen',
-        builder: (context, state) => ListeningScreen(args: state.extra! as ListeningArgs),
+        builder: (context, state) =>
+            ListeningScreen(args: state.extra! as ListeningArgs),
       ),
       GoRoute(
         path: '/interpret',

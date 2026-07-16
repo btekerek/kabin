@@ -18,8 +18,7 @@ class BroadcastingScreen extends ConsumerStatefulWidget {
   final BroadcastingArgs args;
 
   @override
-  ConsumerState<BroadcastingScreen> createState() =>
-      _BroadcastingScreenState();
+  ConsumerState<BroadcastingScreen> createState() => _BroadcastingScreenState();
 }
 
 class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
