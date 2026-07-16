@@ -16,6 +16,7 @@ Map<String, dynamic> _sessionJson({required int id, required String status}) =>
       'channels': [
         {
           'id': 10,
+          'session': id,
           'language': 'EN',
           'interpreter_code': 'EN482913',
           'is_source': true
