@@ -1,6 +1,9 @@
-"""
-WebSocket URL routing. Empty until the first real-time feature (session
-status / queue updates) is built — see apps/realtime/consumers.py.
-"""
+"""WebSocket URL routing. See ChatConsumer (consumers.py) and ADR-005."""
 
-websocket_urlpatterns: list = []
+from django.urls import re_path
+
+from apps.realtime.consumers import ChatConsumer
+
+websocket_urlpatterns = [
+    re_path(r"^ws/sessions/(?P<session_id>\d+)/chat/$", ChatConsumer.as_asgi()),
+]

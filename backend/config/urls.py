@@ -1,9 +1,8 @@
 """
 Root URL configuration.
 
-Only infra endpoints (health check, OpenAPI schema/docs) are wired up at
-scaffold time. Feature endpoints (auth, sessions, etc.) are added as each
-vertical slice is built.
+Infra endpoints (health check, OpenAPI schema/docs) plus feature endpoints
+as each vertical slice is built.
 """
 
 from django.contrib import admin
@@ -13,15 +12,19 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from apps.core.views import LanguageListView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", include("apps.core.urls")),
+    path("api/languages/", LanguageListView.as_view(), name="language-list"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
-    # path("api/auth/", include("apps.accounts.urls")),  # next slice
-    # path("api/sessions/", include("apps.sessions.urls")),  # next slice
+    path("api/auth/", include("apps.accounts.urls")),
+    path("api/sessions/", include("apps.sessions.urls")),
+    path("api/channels/", include("apps.sessions.channel_urls")),
 ]
