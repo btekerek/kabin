@@ -8,7 +8,7 @@ import 'channel.dart';
 /// to enter, since the Q&A guide screen is a later slice.
 enum SessionStatus { notStarted, active, qaMode, ended }
 
-SessionStatus _statusFromJson(String value) {
+SessionStatus sessionStatusFromJson(String value) {
   switch (value) {
     case 'not_started':
       return SessionStatus.notStarted;
@@ -57,7 +57,7 @@ class Session {
         name: json['name'] as String,
         sourceLanguage: json['source_language'] as String,
         listenerCode: json['listener_code'] as String,
-        status: _statusFromJson(json['status'] as String),
+        status: sessionStatusFromJson(json['status'] as String),
         createdAt: DateTime.parse(json['created_at'] as String),
         channels: (json['channels'] as List<dynamic>)
             .map((entry) => Channel.fromJson(entry as Map<String, dynamic>))
