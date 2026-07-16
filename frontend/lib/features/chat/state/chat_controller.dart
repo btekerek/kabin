@@ -53,6 +53,10 @@ class ChatController {
   final _pendingController = StreamController<List<PendingMessage>>.broadcast();
   int _nextLocalId = 0;
 
+  static const int _pageSize = 50;
+  bool _hasMoreHistory = true;
+  bool _loadingOlder = false;
+
   Stream<List<ChatMessage>> get messagesStream => _messagesController.stream;
   Stream<ChatConnectionStatus> get statusStream => _socket.statusStream;
   Stream<List<PendingMessage>> get pendingStream => _pendingController.stream;
@@ -60,10 +64,20 @@ class ChatController {
   List<ChatMessage> get messages => _sortedMessages();
   List<PendingMessage> get pending => List.unmodifiable(_pending);
 
-  /// Fetches history, then opens the live socket. [socketQueryParams] is
-  /// `{'token': accessToken}` for guide/interpreter.
+  /// Whether there's an older page left to fetch via [loadOlder] - false
+  /// once a page comes back shorter than the page size, meaning the
+  /// beginning of the conversation has been reached.
+  bool get hasMoreHistory => _hasMoreHistory;
+
+  /// Fetches the most recent page of history, then opens the live
+  /// socket. [socketQueryParams] is `{'token': accessToken}` for
+  /// guide/interpreter. Only the most recent [_pageSize] messages load
+  /// here - older ones are fetched on demand via [loadOlder], not all at
+  /// once, so opening a long-running session's chat doesn't mean
+  /// downloading its entire history up front.
   Future<void> connect(Map<String, String> socketQueryParams) async {
-    final history = await _repository.history(sessionId);
+    final history = await _repository.history(sessionId, limit: _pageSize);
+    _hasMoreHistory = history.length >= _pageSize;
     for (final message in history) {
       _byId[message.id] = message;
     }
@@ -71,6 +85,32 @@ class ChatController {
 
     _socketSubscription = _socket.messages.listen(_upsert);
     _socket.connect(sessionId: sessionId, queryParams: socketQueryParams);
+  }
+
+  /// Fetches the page immediately before the oldest message currently
+  /// loaded and prepends it. A no-op if a fetch is already in flight,
+  /// [hasMoreHistory] is already false, or nothing has loaded yet (there
+  /// being no "oldest" to page backward from before [connect] resolves).
+  Future<void> loadOlder() async {
+    if (_loadingOlder || !_hasMoreHistory) return;
+    final sorted = _sortedMessages();
+    if (sorted.isEmpty) return;
+
+    _loadingOlder = true;
+    try {
+      final page = await _repository.history(
+        sessionId,
+        beforeId: sorted.first.id,
+        limit: _pageSize,
+      );
+      _hasMoreHistory = page.length >= _pageSize;
+      for (final message in page) {
+        _byId[message.id] = message;
+      }
+      _messagesController.add(_sortedMessages());
+    } finally {
+      _loadingOlder = false;
+    }
   }
 
   /// Shows [body] immediately as a pending entry, then sends it. On
@@ -123,9 +163,18 @@ class ChatController {
     _messagesController.add(_sortedMessages());
   }
 
+  /// Sorted by (createdAt, id) - a plain createdAt sort isn't enough on
+  /// its own since two messages can share the same second in a live
+  /// chat, and List.sort isn't guaranteed stable for ties. Breaking ties
+  /// by id matches the backend's own ordering (Message.Meta.ordering =
+  /// ["created_at", "id"]), so this can never reorder messages compared
+  /// to what a fresh history() fetch would return.
   List<ChatMessage> _sortedMessages() {
     final list = _byId.values.toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      ..sort((a, b) {
+        final byTime = a.createdAt.compareTo(b.createdAt);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
     return list;
   }
 

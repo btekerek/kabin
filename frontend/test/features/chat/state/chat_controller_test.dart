@@ -103,4 +103,39 @@ void main() {
     expect(controller.messages, hasLength(1));
     expect(controller.messages.first.id, 5);
   });
+
+  // loadOlder() doesn't touch the socket either, so it's testable the
+  // same way - seed one message via send() (a non-socket path) to give
+  // loadOlder() an "oldest" message to page backward from, standing in
+  // for what connect()'s initial history fetch would normally provide.
+
+  test('loadOlder() prepends an older page before the oldest loaded message',
+      () async {
+    repository.messageToReturn = _message(id: 10, body: 'newest');
+    await controller.send(body: 'newest');
+
+    repository.historyToReturn = [
+      _message(id: 8, body: 'older'),
+      _message(id: 9, body: 'older2'),
+    ];
+    await controller.loadOlder();
+
+    expect(controller.messages.map((m) => m.id), [8, 9, 10]);
+  });
+
+  test('loadOlder() marks history exhausted once a short page comes back',
+      () async {
+    repository.messageToReturn = _message(id: 10, body: 'newest');
+    await controller.send(body: 'newest');
+
+    repository.historyToReturn = []; // nothing older than id 10
+    await controller.loadOlder();
+    expect(controller.hasMoreHistory, isFalse);
+
+    // A further call is a no-op once exhausted - even if the repository
+    // would return something, loadOlder() shouldn't ask again.
+    repository.historyToReturn = [_message(id: 1, body: 'should not appear')];
+    await controller.loadOlder();
+    expect(controller.messages.any((m) => m.id == 1), isFalse);
+  });
 }

@@ -158,7 +158,12 @@ class FakeChatRepository extends ChatRepository {
   final List<String> sentBodies = [];
 
   @override
-  Future<List<ChatMessage>> history(int sessionId) async => historyToReturn;
+  Future<List<ChatMessage>> history(
+    int sessionId, {
+    int? beforeId,
+    int limit = 50,
+  }) async =>
+      historyToReturn;
 
   @override
   Future<ChatMessage> send({

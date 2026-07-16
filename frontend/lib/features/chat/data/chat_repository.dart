@@ -13,8 +13,24 @@ class ChatRepository {
 
   final Dio _dio;
 
-  Future<List<ChatMessage>> history(int sessionId) async {
-    final response = await _dio.get('/api/sessions/$sessionId/messages/');
+  /// Returns the most recent [limit] messages, chronological ascending,
+  /// or (with [beforeId]) the [limit] messages immediately before that
+  /// one - see MessageListCreateView.get(). Without [beforeId] this is
+  /// always "the current tail," not a page number, so repeatedly
+  /// calling it with no arguments stays correct even as new messages
+  /// arrive - only [beforeId] pages backward in time.
+  Future<List<ChatMessage>> history(
+    int sessionId, {
+    int? beforeId,
+    int limit = 50,
+  }) async {
+    final response = await _dio.get(
+      '/api/sessions/$sessionId/messages/',
+      queryParameters: {
+        'limit': limit,
+        if (beforeId != null) 'before_id': beforeId,
+      },
+    );
     return (response.data as List)
         .map((json) => ChatMessage.fromJson(json as Map<String, dynamic>))
         .toList();

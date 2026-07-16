@@ -27,10 +27,12 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final ChatController _controller;
   final _bodyController = TextEditingController();
+  final _scrollController = ScrollController();
 
   List<ChatMessage> _messages = const [];
   List<PendingMessage> _pending = const [];
   ChatConnectionStatus _status = ChatConnectionStatus.connecting;
+  bool _loadingOlder = false;
 
   @override
   void initState() {
@@ -49,6 +51,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) setState(() => _status = status);
     });
     _controller.connect(widget.args.socketQueryParams);
+    _scrollController.addListener(_onScroll);
+  }
+
+  /// Messages render oldest-first (index 0 at the top), so scrolling
+  /// toward minScrollExtent is scrolling toward the oldest message
+  /// currently loaded - that's when it's time to fetch the page before it.
+  void _onScroll() {
+    const threshold = 200.0;
+    if (_scrollController.position.pixels <=
+        _scrollController.position.minScrollExtent + threshold) {
+      _loadOlder();
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_controller.hasMoreHistory) return;
+    setState(() => _loadingOlder = true);
+    try {
+      await _controller.loadOlder();
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
   }
 
   void _send() {
@@ -67,12 +91,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _controller.dispose();
     _bodyController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = _messages.length + _pending.length;
+    final leadingCount = _loadingOlder ? 1 : 0;
+    final itemCount = leadingCount + _messages.length + _pending.length;
     return Scaffold(
       appBar: AppBar(title: Text(widget.args.title)),
       body: Column(
@@ -82,13 +108,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: itemCount == 0
                 ? const Center(child: Text('No messages yet'))
                 : ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     itemCount: itemCount,
                     itemBuilder: (context, index) {
-                      if (index < _messages.length) {
-                        return _MessageTile(message: _messages[index]);
+                      if (_loadingOlder && index == 0) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Center(
+                            child: SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
                       }
-                      final pending = _pending[index - _messages.length];
+                      final adjusted = index - leadingCount;
+                      if (adjusted < _messages.length) {
+                        return _MessageTile(message: _messages[adjusted]);
+                      }
+                      final pending = _pending[adjusted - _messages.length];
                       return _PendingTile(
                         pending: pending,
                         onRetry: () => _controller.retry(pending),
