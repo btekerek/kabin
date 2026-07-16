@@ -99,7 +99,7 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _sourceLanguageCode,
+              initialValue: _sourceLanguageCode,
               decoration: const InputDecoration(labelText: 'Source language (the stage)'),
               items: [
                 for (final language in languages)
