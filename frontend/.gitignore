@@ -43,3 +43,14 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated plugin registrant files - deterministic output of
+# `flutter pub get` (often re-run automatically by an IDE) for whatever
+# plugin set is in pubspec.yaml on the current branch. They churn as
+# unstaged noise every time you switch between branches with different
+# plugins, so they're not tracked.
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugins.cmake
+macos/Flutter/GeneratedPluginRegistrant.swift
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugins.cmake
