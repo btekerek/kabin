@@ -16,6 +16,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -523,6 +524,9 @@ class MessageListCreateView(APIView):
 
     permission_classes = [permissions.AllowAny]
 
+    DEFAULT_PAGE_SIZE = 50
+    MAX_PAGE_SIZE = 200
+
     def _get_session(self, request, pk):
         session = get_object_or_404(Session, pk=pk)
         if not IsSessionParticipant().has_object_permission(request, self, session):
@@ -534,9 +538,39 @@ class MessageListCreateView(APIView):
         return session
 
     def get(self, request, pk):
+        """Returns the most recent `limit` messages (default/max: 50/200),
+        chronological ascending same as before pagination existed. Pass
+        `before_id` (a message id already seen) to page further back in
+        time - the response is the `limit` messages immediately before
+        that one, still chronological ascending.
+
+        Without `before_id` this is "the tail of the conversation," not
+        an offset - so it stays correct even if new messages arrive
+        between page requests, unlike a page-number scheme would.
+        """
         session = self._get_session(request, pk)
-        messages = Message.objects.filter(session=session)
-        return Response(MessageSerializer(messages, many=True).data)
+        limit = self._parse_limit(request.query_params.get("limit"))
+
+        queryset = Message.objects.filter(session=session).order_by("-created_at", "-id")
+
+        before_id = request.query_params.get("before_id")
+        if before_id is not None:
+            cursor = get_object_or_404(Message, pk=before_id, session=session)
+            queryset = queryset.filter(
+                Q(created_at__lt=cursor.created_at)
+                | Q(created_at=cursor.created_at, id__lt=cursor.id)
+            )
+
+        page = list(queryset[:limit])
+        page.reverse()
+        return Response(MessageSerializer(page, many=True).data)
+
+    def _parse_limit(self, raw_limit):
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return self.DEFAULT_PAGE_SIZE
+        return max(1, min(limit, self.MAX_PAGE_SIZE))
 
     def post(self, request, pk):
         session = self._get_session(request, pk)
