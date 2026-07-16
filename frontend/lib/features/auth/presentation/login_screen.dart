@@ -99,6 +99,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 onPressed: () => context.push('/register'),
                 child: const Text("Don't have an account? Register"),
               ),
+              TextButton(
+                onPressed: () => context.push('/join'),
+                child: const Text('Just here to listen? Join with a PIN'),
+              ),
             ],
           ),
         ),

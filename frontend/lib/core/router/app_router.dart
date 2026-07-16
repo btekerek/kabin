@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
+import '../../features/listener/presentation/listener_join_screen.dart';
+import '../../features/listener/presentation/listening_args.dart';
+import '../../features/listener/presentation/listening_screen.dart';
 import '../../features/sessions/presentation/create_session_screen.dart';
 import '../../features/sessions/presentation/session_dashboard_screen.dart';
 import '../../features/sessions/presentation/session_list_screen.dart';
@@ -23,6 +26,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       final onSplash = state.matchedLocation == '/splash';
+      final isListenerRoute = state.matchedLocation == '/join' ||
+          state.matchedLocation == '/listen';
+
+      // The Listener flow has no account at all (see ADR-002) - it
+      // never participates in the Guide auth redirect below.
+      if (isListenerRoute) return null;
 
       return authState.when(
         loading: () => onSplash ? null : '/splash',
@@ -53,6 +62,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/unsupported-role',
         builder: (context, state) => const RoleNotSupportedScreen(),
+      ),
+      GoRoute(path: '/join', builder: (context, state) => const ListenerJoinScreen()),
+      GoRoute(
+        path: '/listen',
+        builder: (context, state) => ListeningScreen(args: state.extra! as ListeningArgs),
       ),
       GoRoute(
         path: '/sessions',
