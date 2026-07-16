@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:kabin/core/auth/token_pair.dart';
 import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/data/auth_repository.dart';
 import 'package:kabin/features/auth/domain/user.dart';
+import 'package:kabin/features/chat/data/chat_repository.dart';
+import 'package:kabin/features/chat/domain/message.dart';
 import 'package:kabin/features/sessions/data/session_repository.dart';
 import 'package:kabin/features/sessions/domain/language.dart';
 import 'package:kabin/features/sessions/domain/session.dart';
@@ -137,5 +141,38 @@ class FakeSessionRepository extends SessionRepository {
   Future<List<Language>> languages() async {
     calledActions.add('languages');
     return languagesToReturn;
+  }
+}
+
+/// [sendCompleter], when set, lets a test control exactly when a `send`
+/// call resolves - needed to observe the pending-message state that
+/// exists between `send()` being called and it settling.
+class FakeChatRepository extends ChatRepository {
+  FakeChatRepository() : super(Dio());
+
+  List<ChatMessage> historyToReturn = [];
+  ChatMessage? messageToReturn;
+  Object? nextSendError;
+  Completer<ChatMessage>? sendCompleter;
+
+  final List<String> sentBodies = [];
+
+  @override
+  Future<List<ChatMessage>> history(int sessionId) async => historyToReturn;
+
+  @override
+  Future<ChatMessage> send({
+    required int sessionId,
+    required String body,
+    String? listenerUuid,
+  }) {
+    sentBodies.add(body);
+    if (sendCompleter != null) return sendCompleter!.future;
+    if (nextSendError != null) {
+      final error = nextSendError!;
+      nextSendError = null;
+      return Future.error(error);
+    }
+    return Future.value(messageToReturn!);
   }
 }
