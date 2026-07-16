@@ -177,6 +177,66 @@ def test_message_history_is_chronological(guide, session_with_channels):
     assert Message.objects.filter(session_id=session_with_channels["id"]).count() == 2
 
 
+def test_message_history_limit_returns_most_recent(guide, session_with_channels):
+    client = _authed_client(guide)
+    for body in ["first", "second", "third"]:
+        client.post(
+            f"/api/sessions/{session_with_channels['id']}/messages/",
+            {"body": body},
+            format="json",
+        )
+
+    history = client.get(f"/api/sessions/{session_with_channels['id']}/messages/", {"limit": 2})
+    assert history.status_code == status.HTTP_200_OK
+    # Still the most recent 2, in chronological order - not the first 2.
+    assert [m["body"] for m in history.data] == ["second", "third"]
+
+
+def test_message_history_before_id_pages_backwards(guide, session_with_channels):
+    client = _authed_client(guide)
+    ids = []
+    for body in ["first", "second", "third"]:
+        response = client.post(
+            f"/api/sessions/{session_with_channels['id']}/messages/",
+            {"body": body},
+            format="json",
+        )
+        ids.append(response.data["id"])
+
+    history = client.get(
+        f"/api/sessions/{session_with_channels['id']}/messages/",
+        {"before_id": ids[2]},
+    )
+    assert [m["body"] for m in history.data] == ["first", "second"]
+
+
+def test_message_history_before_id_combines_with_limit(guide, session_with_channels):
+    client = _authed_client(guide)
+    ids = []
+    for body in ["first", "second", "third"]:
+        response = client.post(
+            f"/api/sessions/{session_with_channels['id']}/messages/",
+            {"body": body},
+            format="json",
+        )
+        ids.append(response.data["id"])
+
+    history = client.get(
+        f"/api/sessions/{session_with_channels['id']}/messages/",
+        {"before_id": ids[2], "limit": 1},
+    )
+    assert [m["body"] for m in history.data] == ["second"]
+
+
+def test_message_history_before_unknown_id_404s(guide, session_with_channels):
+    client = _authed_client(guide)
+    history = client.get(
+        f"/api/sessions/{session_with_channels['id']}/messages/",
+        {"before_id": 999999},
+    )
+    assert history.status_code == status.HTTP_404_NOT_FOUND
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 async def test_ws_listener_receives_broadcast_message(session_with_channels):

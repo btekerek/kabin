@@ -15,6 +15,7 @@ void main() {
         'expires_in': 3600,
         'channel': {
           'id': 2,
+          'session': 7,
           'language': 'TR',
           'interpreter_code': 'TR117733',
           'is_source': false,
@@ -27,6 +28,7 @@ void main() {
       );
 
       expect(result.joinResult.agoraChannelName, 'chan-abc');
+      expect(result.channel.sessionId, 7);
       expect(result.channel.language, 'TR');
       expect(result.channel.interpreterCode, 'TR117733');
       expect(result.channel.isSource, isFalse);

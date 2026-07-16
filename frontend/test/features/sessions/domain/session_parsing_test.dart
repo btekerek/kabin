@@ -15,12 +15,14 @@ void main() {
         'channels': [
           {
             'id': 1,
+            'session': 7,
             'language': 'EN',
             'interpreter_code': 'EN482913',
             'is_source': true
           },
           {
             'id': 2,
+            'session': 7,
             'language': 'TR',
             'interpreter_code': 'TR117733',
             'is_source': false
