@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
+import '../../../core/errors/api_error_message.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -24,6 +25,7 @@ class BroadcastingScreen extends ConsumerStatefulWidget {
 class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   final _controller = AgoraChannelController();
   Object? _connectError;
+  Object? _leaveError;
   bool _muted = false;
   bool _leaving = false;
 
@@ -52,18 +54,28 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     if (mounted) setState(() => _muted = next);
   }
 
+  /// Releasing the claim (ChannelLeaveView) is not best-effort: if it
+  /// fails, another interpreter can't pick up this channel, so the
+  /// failure is surfaced and the user can retry rather than the screen
+  /// silently popping as if the release had succeeded. _controller.leave()
+  /// is idempotent (a no-op once the engine is already released), so
+  /// retrying after a partial failure is safe.
   Future<void> _leave() async {
-    setState(() => _leaving = true);
-    await _controller.leave();
+    setState(() {
+      _leaving = true;
+      _leaveError = null;
+    });
     try {
+      await _controller.leave();
       await ref
           .read(interpreterRepositoryProvider)
           .leave(widget.args.interpreterCode);
-    } catch (_) {
-      // Best-effort release - nothing useful to show here even if this
-      // call fails; the claim isn't left in a broken state either way.
+      if (mounted) context.pop();
+    } catch (error) {
+      if (mounted) setState(() => _leaveError = error);
+    } finally {
+      if (mounted) setState(() => _leaving = false);
     }
-    if (mounted) context.pop();
   }
 
   @override
@@ -92,6 +104,14 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'Could not connect. Check your connection and try again.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              if (_leaveError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Could not leave: ${apiErrorMessage(_leaveError!)}',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                   textAlign: TextAlign.center,
                 ),
