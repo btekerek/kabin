@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
+import '../../features/interpreter/presentation/broadcasting_args.dart';
+import '../../features/interpreter/presentation/broadcasting_screen.dart';
+import '../../features/interpreter/presentation/interpreter_join_screen.dart';
 import '../../features/listener/presentation/listener_join_screen.dart';
 import '../../features/listener/presentation/listening_args.dart';
 import '../../features/listener/presentation/listening_screen.dart';
@@ -40,15 +43,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if (user == null) {
             return loggingIn ? null : '/login';
           }
-          if (!user.isGuide) {
-            return state.matchedLocation == '/unsupported-role'
-                ? null
-                : '/unsupported-role';
+          if (user.isGuide) {
+            return (loggingIn || onSplash) ? '/sessions' : null;
           }
-          if (loggingIn || onSplash) {
-            return '/sessions';
+          if (user.role == 'interpreter') {
+            final isInterpreterRoute = state.matchedLocation == '/interpret' ||
+                state.matchedLocation == '/broadcast';
+            return isInterpreterRoute ? null : '/interpret';
           }
-          return null;
+          return state.matchedLocation == '/unsupported-role'
+              ? null
+              : '/unsupported-role';
         },
       );
     },
@@ -67,6 +72,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/listen',
         builder: (context, state) => ListeningScreen(args: state.extra! as ListeningArgs),
+      ),
+      GoRoute(
+        path: '/interpret',
+        builder: (context, state) => const InterpreterJoinScreen(),
+      ),
+      GoRoute(
+        path: '/broadcast',
+        builder: (context, state) =>
+            BroadcastingScreen(args: state.extra! as BroadcastingArgs),
       ),
       GoRoute(
         path: '/sessions',
