@@ -13,8 +13,18 @@ void main() {
         'status': 'not_started',
         'created_at': '2026-07-14T12:00:00Z',
         'channels': [
-          {'id': 1, 'language': 'EN', 'interpreter_code': 'EN482913', 'is_source': true},
-          {'id': 2, 'language': 'TR', 'interpreter_code': 'TR117733', 'is_source': false},
+          {
+            'id': 1,
+            'language': 'EN',
+            'interpreter_code': 'EN482913',
+            'is_source': true
+          },
+          {
+            'id': 2,
+            'language': 'TR',
+            'interpreter_code': 'TR117733',
+            'is_source': false
+          },
         ],
       });
 

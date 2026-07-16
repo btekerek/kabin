@@ -46,7 +46,8 @@ class Session {
   bool get canStart => status == SessionStatus.notStarted;
 
   /// Whether Stop (-> not_started) is a legal next step.
-  bool get canStop => status == SessionStatus.active || status == SessionStatus.qaMode;
+  bool get canStop =>
+      status == SessionStatus.active || status == SessionStatus.qaMode;
 
   /// Whether End (-> ended, terminal) is a legal next step.
   bool get canEnd => status != SessionStatus.ended;

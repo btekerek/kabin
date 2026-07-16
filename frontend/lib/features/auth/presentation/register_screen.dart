@@ -57,8 +57,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 keyboardType: TextInputType.emailAddress,
                 autofillHints: const [AutofillHints.email],
                 decoration: const InputDecoration(labelText: 'Email'),
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Email is required' : null,
+                validator: (value) => (value == null || value.isEmpty)
+                    ? 'Email is required'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -66,14 +67,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 obscureText: true,
                 autofillHints: const [AutofillHints.newPassword],
                 decoration: const InputDecoration(labelText: 'Password'),
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Password is required' : null,
+                validator: (value) => (value == null || value.isEmpty)
+                    ? 'Password is required'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _confirmController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Confirm password'),
+                decoration:
+                    const InputDecoration(labelText: 'Confirm password'),
                 validator: (value) => value != _passwordController.text
                     ? 'Passwords do not match'
                     : null,

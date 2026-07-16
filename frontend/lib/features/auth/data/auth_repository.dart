@@ -33,7 +33,8 @@ class AuthRepository {
       'password': password,
     });
     final data = response.data as Map<String, dynamic>;
-    return TokenPair(access: data['access'] as String, refresh: data['refresh'] as String);
+    return TokenPair(
+        access: data['access'] as String, refresh: data['refresh'] as String);
   }
 
   Future<void> logout(String refreshToken) async {

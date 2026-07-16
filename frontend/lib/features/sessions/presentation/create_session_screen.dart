@@ -10,7 +10,8 @@ class CreateSessionScreen extends ConsumerStatefulWidget {
   const CreateSessionScreen({super.key});
 
   @override
-  ConsumerState<CreateSessionScreen> createState() => _CreateSessionScreenState();
+  ConsumerState<CreateSessionScreen> createState() =>
+      _CreateSessionScreenState();
 }
 
 class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
@@ -82,7 +83,9 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
     final filter = _targetFilterController.text.trim().toLowerCase();
     final filteredForTargets = filter.isEmpty
         ? languages
-        : languages.where((language) => language.name.toLowerCase().contains(filter)).toList();
+        : languages
+            .where((language) => language.name.toLowerCase().contains(filter))
+            .toList();
 
     return Form(
       key: _formKey,
@@ -94,21 +97,25 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Session name'),
-              validator: (value) =>
-                  (value == null || value.isEmpty) ? 'Session name is required' : null,
+              validator: (value) => (value == null || value.isEmpty)
+                  ? 'Session name is required'
+                  : null,
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               initialValue: _sourceLanguageCode,
-              decoration: const InputDecoration(labelText: 'Source language (the stage)'),
+              decoration: const InputDecoration(
+                  labelText: 'Source language (the stage)'),
               items: [
                 for (final language in languages)
-                  DropdownMenuItem(value: language.code, child: Text(language.name)),
+                  DropdownMenuItem(
+                      value: language.code, child: Text(language.name)),
               ],
               onChanged: (value) => setState(() => _sourceLanguageCode = value),
             ),
             const SizedBox(height: 16),
-            Text('Target languages', style: Theme.of(context).textTheme.titleSmall),
+            Text('Target languages',
+                style: Theme.of(context).textTheme.titleSmall),
             TextField(
               controller: _targetFilterController,
               decoration: const InputDecoration(

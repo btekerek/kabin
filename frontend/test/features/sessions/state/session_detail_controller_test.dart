@@ -5,7 +5,8 @@ import 'package:kabin/features/sessions/state/session_providers.dart';
 
 import '../../../helpers/fake_repositories.dart';
 
-Map<String, dynamic> _sessionJson({required int id, required String status}) => {
+Map<String, dynamic> _sessionJson({required int id, required String status}) =>
+    {
       'id': id,
       'name': 'Kabin Conf',
       'source_language': 'EN',
@@ -13,7 +14,12 @@ Map<String, dynamic> _sessionJson({required int id, required String status}) => 
       'status': status,
       'created_at': '2026-07-14T12:00:00Z',
       'channels': [
-        {'id': 10, 'language': 'EN', 'interpreter_code': 'EN482913', 'is_source': true},
+        {
+          'id': 10,
+          'language': 'EN',
+          'interpreter_code': 'EN482913',
+          'is_source': true
+        },
       ],
     };
 
@@ -43,7 +49,8 @@ void main() {
     expect(fakeSessionRepository.calledActions, contains('get:1'));
   });
 
-  test('start() calls the repository and updates state to the returned session', () async {
+  test('start() calls the repository and updates state to the returned session',
+      () async {
     fakeSessionRepository.sessionToReturn = Session.fromJson(
       _sessionJson(id: 1, status: 'not_started'),
     );
@@ -66,7 +73,10 @@ void main() {
     await container.read(sessionDetailProvider(1).future);
 
     fakeSessionRepository.nextError = fakeDioException(
-      data: {'code': 'INVALID_TRANSITION', 'message': "Cannot go from 'ended' to 'active'."},
+      data: {
+        'code': 'INVALID_TRANSITION',
+        'message': "Cannot go from 'ended' to 'active'."
+      },
     );
     await container.read(sessionDetailProvider(1).notifier).start();
 

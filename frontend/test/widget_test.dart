@@ -7,7 +7,8 @@ import 'package:kabin/main.dart';
 import 'helpers/fake_repositories.dart';
 
 void main() {
-  testWidgets('with no stored session, the app boots to the login screen', (tester) async {
+  testWidgets('with no stored session, the app boots to the login screen',
+      (tester) async {
     // Real network calls never reach a backend in this test - the fake
     // repository's default me() throws, which AuthController's
     // bootstrap treats as "logged out" (see auth_controller_test.dart
@@ -16,7 +17,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authSessionProvider.overrideWithValue(AuthSession(storage: FakeTokenStorage())),
+          authSessionProvider
+              .overrideWithValue(AuthSession(storage: FakeTokenStorage())),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         ],
         child: const KabinApp(),

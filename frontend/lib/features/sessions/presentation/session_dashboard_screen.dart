@@ -71,7 +71,8 @@ class _DashboardBody extends ConsumerWidget {
               ),
             if (session.canEnd)
               OutlinedButton(
-                style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error),
                 onPressed: isTransitioning ? null : controller.end,
                 child: const Text('End session'),
               ),
@@ -103,7 +104,8 @@ class _DashboardBody extends ConsumerWidget {
 }
 
 class _CodeCard extends StatelessWidget {
-  const _CodeCard({required this.label, required this.code, required this.description});
+  const _CodeCard(
+      {required this.label, required this.code, required this.description});
 
   final String label;
   final String code;
@@ -122,7 +124,8 @@ class _CodeCard extends StatelessWidget {
                 children: [
                   Text(label, style: Theme.of(context).textTheme.labelMedium),
                   Text(code, style: Theme.of(context).textTheme.headlineMedium),
-                  Text(description, style: Theme.of(context).textTheme.bodySmall),
+                  Text(description,
+                      style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),
@@ -151,7 +154,8 @@ class _ChannelTile extends StatelessWidget {
       trailing: IconButton(
         icon: const Icon(Icons.copy),
         tooltip: 'Copy',
-        onPressed: () => Clipboard.setData(ClipboardData(text: channel.interpreterCode)),
+        onPressed: () =>
+            Clipboard.setData(ClipboardData(text: channel.interpreterCode)),
       ),
     );
   }

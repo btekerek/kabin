@@ -60,8 +60,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 autofillHints: const [AutofillHints.email],
                 decoration: const InputDecoration(labelText: 'Email'),
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Email is required' : null,
+                validator: (value) => (value == null || value.isEmpty)
+                    ? 'Email is required'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -69,8 +70,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 obscureText: true,
                 autofillHints: const [AutofillHints.password],
                 decoration: const InputDecoration(labelText: 'Password'),
-                validator: (value) =>
-                    (value == null || value.isEmpty) ? 'Password is required' : null,
+                validator: (value) => (value == null || value.isEmpty)
+                    ? 'Password is required'
+                    : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
               if (authState.hasError) ...[

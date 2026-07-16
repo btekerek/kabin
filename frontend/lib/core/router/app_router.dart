@@ -20,8 +20,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) {
-      final loggingIn =
-          state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final loggingIn = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
       final onSplash = state.matchedLocation == '/splash';
 
       return authState.when(
@@ -32,7 +32,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return loggingIn ? null : '/login';
           }
           if (!user.isGuide) {
-            return state.matchedLocation == '/unsupported-role' ? null : '/unsupported-role';
+            return state.matchedLocation == '/unsupported-role'
+                ? null
+                : '/unsupported-role';
           }
           if (loggingIn || onSplash) {
             return '/sessions';
@@ -42,9 +44,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
-      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+      GoRoute(
+          path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterScreen()),
       GoRoute(
         path: '/unsupported-role',
         builder: (context, state) => const RoleNotSupportedScreen(),

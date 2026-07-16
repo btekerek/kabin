@@ -30,13 +30,15 @@ class SessionListScreen extends ConsumerWidget {
         error: (error, _) => Center(child: Text(apiErrorMessage(error))),
         data: (sessions) {
           if (sessions.isEmpty) {
-            return const Center(child: Text('No sessions yet. Create one to get started.'));
+            return const Center(
+                child: Text('No sessions yet. Create one to get started.'));
           }
           return RefreshIndicator(
             onRefresh: () => ref.read(sessionListProvider.notifier).refresh(),
             child: ListView.builder(
               itemCount: sessions.length,
-              itemBuilder: (context, index) => _SessionTile(session: sessions[index]),
+              itemBuilder: (context, index) =>
+                  _SessionTile(session: sessions[index]),
             ),
           );
         },
@@ -59,7 +61,8 @@ class _SessionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(session.name),
-      subtitle: Text('Code ${session.listenerCode} · ${_statusLabel(session.status)}'),
+      subtitle: Text(
+          'Code ${session.listenerCode} · ${_statusLabel(session.status)}'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/sessions/${session.id}'),
     );

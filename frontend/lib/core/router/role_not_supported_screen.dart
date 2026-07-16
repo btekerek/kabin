@@ -26,7 +26,8 @@ class RoleNotSupportedScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+                onPressed: () =>
+                    ref.read(authControllerProvider.notifier).logout(),
                 child: const Text('Log out'),
               ),
             ],

@@ -23,7 +23,8 @@ final languagesProvider = FutureProvider<List<Language>>((ref) {
 /// The signed-in guide's own sessions (see SessionListCreateView's
 /// get_queryset - the backend already scopes this to request.user, so
 /// there's no client-side filtering to do here).
-final sessionListProvider = AsyncNotifierProvider<SessionListController, List<Session>>(
+final sessionListProvider =
+    AsyncNotifierProvider<SessionListController, List<Session>>(
   SessionListController.new,
 );
 
@@ -35,7 +36,8 @@ class SessionListController extends AsyncNotifier<List<Session>> {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref.read(sessionRepositoryProvider).listSessions());
+    state = await AsyncValue.guard(
+        () => ref.read(sessionRepositoryProvider).listSessions());
   }
 }
 
@@ -59,8 +61,10 @@ class SessionDetailController extends FamilyAsyncNotifier<Session, int> {
   Future<void> stop() => _transition((repo) => repo.stop(arg));
   Future<void> end() => _transition((repo) => repo.end(arg));
 
-  Future<void> _transition(Future<Session> Function(SessionRepository) action) async {
+  Future<void> _transition(
+      Future<Session> Function(SessionRepository) action) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => action(ref.read(sessionRepositoryProvider)));
+    state = await AsyncValue.guard(
+        () => action(ref.read(sessionRepositoryProvider)));
   }
 }

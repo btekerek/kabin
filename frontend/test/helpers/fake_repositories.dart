@@ -27,7 +27,8 @@ class FakeTokenStorage implements TokenStorage {
 /// for code that pattern-matches on `is DioException` (AuthController's
 /// bootstrap, apiErrorMessage) to behave the same as it would against a
 /// real failed request.
-DioException fakeDioException({String path = '/fake/', Map<String, dynamic>? data}) {
+DioException fakeDioException(
+    {String path = '/fake/', Map<String, dynamic>? data}) {
   final requestOptions = RequestOptions(path: path);
   return DioException(
     requestOptions: requestOptions,
@@ -59,7 +60,8 @@ class FakeAuthRepository extends AuthRepository {
   }
 
   @override
-  Future<TokenPair> login({required String email, required String password}) async {
+  Future<TokenPair> login(
+      {required String email, required String password}) async {
     if (loginError != null) throw loginError!;
     return loginTokens!;
   }
