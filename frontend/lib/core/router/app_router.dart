@@ -6,6 +6,7 @@ import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
 import '../../features/chat/presentation/chat_args.dart';
 import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/home/presentation/home_screen.dart';
 import '../../features/interpreter/presentation/broadcasting_args.dart';
 import '../../features/interpreter/presentation/broadcasting_screen.dart';
 import '../../features/interpreter/presentation/interpreter_join_screen.dart';
@@ -15,7 +16,6 @@ import '../../features/listener/presentation/listening_screen.dart';
 import '../../features/sessions/presentation/create_session_screen.dart';
 import '../../features/sessions/presentation/session_dashboard_screen.dart';
 import '../../features/sessions/presentation/session_list_screen.dart';
-import 'role_not_supported_screen.dart';
 import 'splash_screen.dart';
 
 /// A plain Provider that watches authControllerProvider and rebuilds
@@ -31,17 +31,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       final onSplash = state.matchedLocation == '/splash';
-      // /chat is shared by all three roles (see IsSessionParticipant on
-      // the backend) - a Listener reaches it with no account at all
+      // /chat is shared by everyone in a session (see IsSessionParticipant
+      // on the backend) - a Listener reaches it with no account at all
       // (see ADR-002), so it has to bypass the auth gate below the same
       // way /join and /listen do. That bypass is harmless for a logged
-      // in Guide/Interpreter too: it just means the redirect check is
-      // skipped for this one location, not that anything is blocked.
+      // in user too: it just means the redirect check is skipped for
+      // this one location, not that anything is blocked.
       final bypassesAuthGate = state.matchedLocation == '/join' ||
           state.matchedLocation == '/listen' ||
           state.matchedLocation == '/chat';
       if (bypassesAuthGate) return null;
 
+      // No account role to branch on (see features/auth/domain/user.dart) -
+      // every logged-in user lands on the same Home screen and picks
+      // "create a session" or "join as interpreter" from there.
       return authState.when(
         loading: () => onSplash ? null : '/splash',
         error: (_, __) => loggingIn ? null : '/login',
@@ -49,17 +52,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if (user == null) {
             return loggingIn ? null : '/login';
           }
-          if (user.isGuide) {
-            return (loggingIn || onSplash) ? '/sessions' : null;
-          }
-          if (user.role == 'interpreter') {
-            final isInterpreterRoute = state.matchedLocation == '/interpret' ||
-                state.matchedLocation == '/broadcast';
-            return isInterpreterRoute ? null : '/interpret';
-          }
-          return state.matchedLocation == '/unsupported-role'
-              ? null
-              : '/unsupported-role';
+          return (loggingIn || onSplash) ? '/home' : null;
         },
       );
     },
@@ -70,10 +63,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterScreen()),
-      GoRoute(
-        path: '/unsupported-role',
-        builder: (context, state) => const RoleNotSupportedScreen(),
-      ),
+      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
           path: '/join',
           builder: (context, state) => const ListenerJoinScreen()),

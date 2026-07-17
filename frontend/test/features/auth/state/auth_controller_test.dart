@@ -40,7 +40,7 @@ void main() {
     await container
         .read(authControllerProvider.future); // settle bootstrap (logged out)
 
-    const testUser = User(id: 1, email: 'guide@example.com', role: 'guide');
+    const testUser = User(id: 1, email: 'guide@example.com');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');
@@ -79,7 +79,7 @@ void main() {
       () async {
     await container.read(authControllerProvider.future);
 
-    const testUser = User(id: 1, email: 'guide@example.com', role: 'guide');
+    const testUser = User(id: 1, email: 'guide@example.com');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');

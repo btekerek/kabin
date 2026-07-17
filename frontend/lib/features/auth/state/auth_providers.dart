@@ -79,19 +79,17 @@ class AuthController extends AsyncNotifier<User?> {
     });
   }
 
-  /// role is 'guide' or 'interpreter', picked by the user on the
-  /// register screen - the backend and router both already handle
-  /// either account type end to end (see RegisterSerializer,
-  /// IsGuide/IsInterpreter, and app_router.dart's redirect logic).
+  /// There's no role to pick at registration - see HomeScreen for how
+  /// an account becomes a "guide" (creates a session) or "interpreter"
+  /// (claims a channel) per action instead.
   Future<void> register({
     required String email,
     required String password,
-    required String role,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(authRepositoryProvider);
-      await repository.register(email: email, password: password, role: role);
+      await repository.register(email: email, password: password);
       final tokens = await repository.login(email: email, password: password);
       ref.read(authSessionProvider).updateTokens(tokens);
       return repository.me();
