@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.sessions.views import (
     MessageListCreateView,
+    SessionBroadcastView,
     SessionDetailView,
     SessionEndView,
     SessionJoinView,
@@ -19,5 +20,6 @@ urlpatterns = [
     path("<int:pk>/stop/", SessionStopView.as_view(), name="session-stop"),
     path("<int:pk>/end/", SessionEndView.as_view(), name="session-end"),
     path("<int:pk>/join/", SessionJoinView.as_view(), name="session-join"),
+    path("<int:pk>/broadcast/", SessionBroadcastView.as_view(), name="session-broadcast"),
     path("<int:pk>/messages/", MessageListCreateView.as_view(), name="session-messages"),
 ]

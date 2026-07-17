@@ -25,7 +25,11 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.core.exceptions import KabinAPIException
-from apps.sessions.agora import build_interpreter_token, build_listener_token
+from apps.sessions.agora import (
+    build_guide_broadcast_token,
+    build_interpreter_token,
+    build_listener_token,
+)
 from apps.sessions.codes import generate_interpreter_code, generate_listener_code
 from apps.sessions.models import (
     Channel,
@@ -128,6 +132,44 @@ class _SessionTransitionView(APIView):
         """Hook for subclasses with side effects beyond the status change."""
 
 
+class SessionBroadcastView(APIView):
+    """Authenticated (Guide/session-owner): publisher token for the
+    session's own source channel.
+
+    This is what makes the Guide's live mic actually reach anyone else -
+    interpreters listening for material to translate, and any listener
+    who picks "original audio" instead of a translated channel. Mic
+    on/off is deliberately independent of session status (start/stop/
+    end) - the Guide can test their mic or go live at any point before
+    the session ends, not only while status is active.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
+
+    def post(self, request, pk):
+        session = get_object_or_404(Session, pk=pk)
+        self.check_object_permissions(request, session)
+
+        if session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended and cannot be broadcast to.",
+                status_code=400,
+            )
+
+        source_channel = get_object_or_404(Channel, session=session, is_source=True)
+        token = build_guide_broadcast_token(source_channel.agora_channel_name)
+        return Response(
+            {
+                "agora_app_id": settings.AGORA_APP_ID,
+                "agora_channel_name": source_channel.agora_channel_name,
+                "agora_token": token,
+                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+                "channel": ChannelSerializer(source_channel).data,
+            }
+        )
+
+
 class SessionLookupView(APIView):
     """Public: PIN -> session name/status + channel list.
 
@@ -227,6 +269,13 @@ class ChannelJoinView(APIView):
 
     Claim semantics (see ADR-003): free -> claim it; already yours ->
     refresh (reconnect case); someone else's -> CHANNEL_ALREADY_STAFFED.
+
+    Also returns a `source` relay: a listener-role token for the
+    session's source channel, so one claim gives the interpreter
+    everything needed both to hear the Guide (source) and broadcast
+    their interpretation (their own channel) at the same time. `source`
+    is null if the claimed channel *is* the source channel itself - an
+    interpreter can't relay a channel to itself.
     """
 
     permission_classes = [permissions.IsAuthenticated, IsInterpreter]
@@ -272,8 +321,21 @@ class ChannelJoinView(APIView):
                 "agora_token": token,
                 "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
                 "channel": ChannelSerializer(channel).data,
+                "source": self._source_relay(channel),
             }
         )
+
+    def _source_relay(self, channel):
+        if channel.is_source:
+            return None
+        source_channel = Channel.objects.get(session=channel.session, is_source=True)
+        return {
+            "agora_app_id": settings.AGORA_APP_ID,
+            "agora_channel_name": source_channel.agora_channel_name,
+            "agora_token": build_listener_token(source_channel.agora_channel_name),
+            "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+            "channel": ListenerChannelSerializer(source_channel).data,
+        }
 
 
 class ChannelLeaveView(APIView):

@@ -170,3 +170,37 @@ def test_leave_does_not_release_someone_elses_claim(
     )
 
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
+
+
+def test_claiming_a_target_channel_includes_source_relay(interpreter, session_with_channels):
+    # channels[0] is the source (en); channels[1] is the target (tr) - see
+    # session_with_channels fixture, which mirrors SessionListCreateView's
+    # creation order.
+    source_channel = session_with_channels["channels"][0]
+    target_code = session_with_channels["channels"][1]["interpreter_code"]
+
+    response = _authed_client(interpreter).post(
+        "/api/channels/join/", {"interpreter_code": target_code}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    source = response.data["source"]
+    assert source is not None
+    assert source["agora_channel_name"] == f"kabin-ch-{source_channel['id']}"
+    assert source["agora_token"]
+    assert source["channel"]["id"] == source_channel["id"]
+    assert source["channel"]["is_source"] is True
+    # ListenerChannelSerializer shape - no interpreter_code leaked to a
+    # channel that isn't this interpreter's own.
+    assert "interpreter_code" not in source["channel"]
+
+
+def test_claiming_the_source_channel_itself_has_no_source_relay(interpreter, session_with_channels):
+    source_code = session_with_channels["channels"][0]["interpreter_code"]
+
+    response = _authed_client(interpreter).post(
+        "/api/channels/join/", {"interpreter_code": source_code}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["source"] is None

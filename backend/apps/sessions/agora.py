@@ -54,3 +54,23 @@ def build_interpreter_token(channel_name: str) -> str:
         Role_Publisher,
         expire_at,
     )
+
+
+def build_guide_broadcast_token(channel_name: str) -> str:
+    """Publisher-role token for the Guide's own live mic into the
+    session's source channel - this is what interpreters and any
+    listener who picks "original audio" actually hear.
+
+    Same role as build_interpreter_token - kept as a separate function
+    (matching the build_floor_token precedent) so each caller's intent
+    is obvious from the name it imports.
+    """
+    expire_at = int(time.time()) + settings.AGORA_TOKEN_TTL_SECONDS
+    return RtcTokenBuilder.buildTokenWithUid(
+        settings.AGORA_APP_ID,
+        settings.AGORA_APP_CERTIFICATE,
+        channel_name,
+        _JOIN_UID,
+        Role_Publisher,
+        expire_at,
+    )
