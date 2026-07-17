@@ -213,7 +213,7 @@ class SessionJoinView(APIView):
                 existing.channel = channel
                 existing.save(update_fields=["channel"])
 
-        token = build_listener_token(channel.agora_channel_name, str(listener_uuid))
+        token = build_listener_token(channel.agora_channel_name)
         return Response(
             {
                 "agora_app_id": settings.AGORA_APP_ID,
@@ -267,7 +267,7 @@ class ChannelJoinView(APIView):
                     status_code=409,
                 )
 
-        token = build_interpreter_token(channel.agora_channel_name, str(request.user.id))
+        token = build_interpreter_token(channel.agora_channel_name)
         return Response(
             {
                 "agora_app_id": settings.AGORA_APP_ID,
@@ -423,7 +423,7 @@ class SpeakView(APIView):
             )
 
         source_channel = get_object_or_404(Channel, session=session, is_source=True)
-        token = build_floor_token(source_channel.agora_channel_name, str(listener_uuid))
+        token = build_floor_token(source_channel.agora_channel_name)
         return Response(
             {
                 "agora_app_id": settings.AGORA_APP_ID,
