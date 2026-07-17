@@ -32,7 +32,8 @@ void main() {
   // AgoraChannelController has no direct unit tests either). None of the
   // behavior under test here touches the socket.
 
-  test('send() shows a pending message immediately, before the repository resolves',
+  test(
+      'send() shows a pending message immediately, before the repository resolves',
       () async {
     repository.sendCompleter = Completer<ChatMessage>();
 
@@ -47,7 +48,8 @@ void main() {
     await future;
   });
 
-  test('a successful send clears the pending entry and upserts the real message',
+  test(
+      'a successful send clears the pending entry and upserts the real message',
       () async {
     repository.messageToReturn = _message(id: 5, body: 'hello');
 

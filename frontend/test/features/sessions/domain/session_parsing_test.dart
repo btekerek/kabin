@@ -58,11 +58,6 @@ void main() {
       expect(active.canStop, isTrue);
       expect(active.canEnd, isTrue);
 
-      final qaMode = withStatus('qa_mode');
-      expect(qaMode.canStart, isFalse);
-      expect(qaMode.canStop, isTrue);
-      expect(qaMode.canEnd, isTrue);
-
       final ended = withStatus('ended');
       expect(ended.canStart, isFalse);
       expect(ended.canStop, isFalse);

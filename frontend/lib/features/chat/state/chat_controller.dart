@@ -10,7 +10,8 @@ import '../domain/message.dart';
 /// offer retry/dismiss rather than silently dropping it - the user
 /// shouldn't have to retype a message that failed to send.
 class PendingMessage {
-  PendingMessage({required this.localId, required this.body, this.listenerUuid});
+  PendingMessage(
+      {required this.localId, required this.body, this.listenerUuid});
 
   final int localId;
   final String body;

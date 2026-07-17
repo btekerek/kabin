@@ -74,8 +74,6 @@ class _SessionTile extends StatelessWidget {
         return 'Not started';
       case SessionStatus.active:
         return 'Active';
-      case SessionStatus.qaMode:
-        return 'Q&A';
       case SessionStatus.ended:
         return 'Ended';
     }

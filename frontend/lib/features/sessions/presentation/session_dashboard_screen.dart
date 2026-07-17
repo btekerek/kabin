@@ -111,8 +111,6 @@ class _DashboardBody extends ConsumerWidget {
         return 'Not started';
       case SessionStatus.active:
         return 'Active';
-      case SessionStatus.qaMode:
-        return 'Q&A';
       case SessionStatus.ended:
         return 'Ended';
     }

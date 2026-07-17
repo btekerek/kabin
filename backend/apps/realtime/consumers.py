@@ -7,8 +7,7 @@ client's perspective. It never accepts a "send message" action; REST
 pushes to this consumer's group after creating each Message. Every
 consumer added here must authorize on connect the same way REST does
 for the equivalent action - see ChatConsumer._authorize for the pattern
-other real-time features (queue/floor updates, mic indicators) should
-follow.
+other real-time features (mic indicators, etc.) should follow.
 """
 
 import uuid as uuid_lib
