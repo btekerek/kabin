@@ -23,7 +23,6 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.accounts.models import User
 from apps.core.exceptions import KabinAPIException
 from apps.sessions.agora import (
     build_guide_broadcast_token,
@@ -38,7 +37,7 @@ from apps.sessions.models import (
     Message,
     Session,
 )
-from apps.sessions.permissions import IsGuide, IsInterpreter, IsSessionOwner, IsSessionParticipant
+from apps.sessions.permissions import IsSessionOwner, IsSessionParticipant
 from apps.sessions.serializers import (
     ChannelSerializer,
     InterpreterCodeSerializer,
@@ -54,7 +53,12 @@ from apps.sessions.serializers import (
 
 
 class SessionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [permissions.IsAuthenticated, IsGuide]
+    """Any authenticated user may create a session - doing so makes them
+    that session's owner (its "guide"), a per-session relationship, not
+    an account-wide role. See permissions.py module docstring.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = SessionSerializer
 
     def get_queryset(self):
@@ -90,7 +94,7 @@ class SessionListCreateView(generics.ListCreateAPIView):
 
 
 class SessionDetailView(generics.RetrieveAPIView):
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
+    permission_classes = [permissions.IsAuthenticated, IsSessionOwner]
     queryset = Session.objects.all()
     serializer_class = SessionSerializer
 
@@ -98,7 +102,7 @@ class SessionDetailView(generics.RetrieveAPIView):
 class _SessionTransitionView(APIView):
     """Shared logic for start/stop/end - subclasses just set target_status."""
 
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
+    permission_classes = [permissions.IsAuthenticated, IsSessionOwner]
     target_status = None
 
     def get_object(self, pk):
@@ -144,7 +148,7 @@ class SessionBroadcastView(APIView):
     the session ends, not only while status is active.
     """
 
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
+    permission_classes = [permissions.IsAuthenticated, IsSessionOwner]
 
     def post(self, request, pk):
         session = get_object_or_404(Session, pk=pk)
@@ -278,7 +282,7 @@ class ChannelJoinView(APIView):
     interpreter can't relay a channel to itself.
     """
 
-    permission_classes = [permissions.IsAuthenticated, IsInterpreter]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         input_serializer = InterpreterCodeSerializer(data=request.data)
@@ -345,7 +349,7 @@ class ChannelLeaveView(APIView):
     call defensively without checking state first.
     """
 
-    permission_classes = [permissions.IsAuthenticated, IsInterpreter]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         input_serializer = InterpreterCodeSerializer(data=request.data)
@@ -455,9 +459,14 @@ class MessageListCreateView(APIView):
 
         user = request.user
         if user and user.is_authenticated:
+            # Guide-ness is ownership, not an account role - see
+            # permissions.py module docstring. A user who reaches here
+            # authenticated but isn't the owner must hold an interpreter
+            # claim instead, since _get_session already enforced
+            # IsSessionParticipant above.
             sender_kind = (
                 Message.SenderKind.GUIDE
-                if user.role == User.Role.GUIDE
+                if session.owner_id == user.id
                 else Message.SenderKind.INTERPRETER
             )
             message = Message.objects.create(

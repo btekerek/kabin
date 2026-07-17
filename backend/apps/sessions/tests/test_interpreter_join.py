@@ -2,8 +2,8 @@
 Interpreter channel-claiming flow: code -> claim -> Agora publisher token.
 
 Unlike listener join, these endpoints require a real authenticated
-Interpreter account (see ADR-003), so tests force_authenticate rather
-than hitting them anonymously.
+account (see ADR-003) - any account may claim a channel, so tests
+force_authenticate rather than hitting them anonymously.
 """
 
 import pytest
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -26,7 +26,7 @@ def guide():
 
 @pytest.fixture
 def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+    user = User(email="interpreter@example.com", username="interpreter")
     user.set_password("password123!")
     user.save()
     return user
@@ -34,11 +34,7 @@ def interpreter():
 
 @pytest.fixture
 def other_interpreter():
-    user = User(
-        email="other-interpreter@example.com",
-        username="other-interpreter",
-        role=User.Role.INTERPRETER,
-    )
+    user = User(email="other-interpreter@example.com", username="other-interpreter")
     user.set_password("password123!")
     user.save()
     return user
@@ -75,12 +71,16 @@ def test_interpreter_can_claim_channel(interpreter, session_with_channels):
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
 
 
-def test_non_interpreter_cannot_claim_channel(guide, session_with_channels):
+def test_session_owner_can_also_claim_a_channel(guide, session_with_channels):
+    # There's no fixed account role (see permissions.py) - the same
+    # account that owns a session (its guide) can also claim one of its
+    # own channels as an interpreter.
     code = session_with_channels["channels"][0]["interpreter_code"]
     response = _authed_client(guide).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_200_OK
+    assert ChannelInterpreter.objects.filter(interpreter=guide).exists()
 
 
 def test_unknown_code_returns_channel_not_found(interpreter):

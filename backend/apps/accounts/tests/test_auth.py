@@ -21,40 +21,38 @@ def api_client():
 
 @pytest.fixture
 def guide_user():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("correct-horse-battery-staple")
     user.save()
     return user
 
 
-def test_register_creates_user_with_role(api_client):
+def test_register_creates_user(api_client):
     response = api_client.post(
         "/api/auth/register/",
         {
-            "email": "new-guide@example.com",
+            "email": "new-user@example.com",
             "password": "correct-horse-battery-staple",
-            "role": "guide",
         },
     )
     assert response.status_code == status.HTTP_201_CREATED
-    assert response.data["email"] == "new-guide@example.com"
-    assert response.data["role"] == "guide"
-    assert User.objects.filter(email="new-guide@example.com").exists()
+    assert response.data["email"] == "new-user@example.com"
+    assert User.objects.filter(email="new-user@example.com").exists()
 
 
 def test_register_duplicate_email_returns_email_in_use(api_client, guide_user):
     response = api_client.post(
         "/api/auth/register/",
-        {"email": guide_user.email, "password": "another-password-1", "role": "guide"},
+        {"email": guide_user.email, "password": "another-password-1"},
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.data["code"] == "EMAIL_IN_USE"
 
 
-def test_register_missing_role_returns_missing_fields(api_client):
+def test_register_missing_password_returns_missing_fields(api_client):
     response = api_client.post(
         "/api/auth/register/",
-        {"email": "no-role@example.com", "password": "correct-horse-battery-staple"},
+        {"email": "no-password@example.com"},
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.data["code"] == "MISSING_FIELDS"
@@ -125,7 +123,6 @@ def test_me_returns_current_user(api_client, guide_user):
     response = api_client.get("/api/auth/me/")
     assert response.status_code == status.HTTP_200_OK
     assert response.data["email"] == guide_user.email
-    assert response.data["role"] == "guide"
 
 
 def test_logout_blacklists_refresh_token(api_client, guide_user):

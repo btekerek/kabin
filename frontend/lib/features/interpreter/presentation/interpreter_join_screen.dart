@@ -7,9 +7,9 @@ import '../../auth/state/auth_providers.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
-/// Authenticated (Interpreter role) entry point - a code alone claims a
-/// channel (see ADR-003), so unlike the Listener flow there's no
-/// separate lookup step before joining.
+/// Authenticated entry point for claiming an interpreter channel - a
+/// code alone claims it (see ADR-003), so unlike the Listener flow
+/// there's no separate lookup step before joining.
 class InterpreterJoinScreen extends ConsumerStatefulWidget {
   const InterpreterJoinScreen({super.key});
 
@@ -54,11 +54,8 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Join as interpreter'),
-        // This is the Interpreter role's landing screen (see
-        // app_router.dart's redirect logic) - there's nowhere else in
-        // the app's own nav stack to go back to, so without this the
-        // account had no way out at all except killing the app. Mirrors
-        // the logout action on SessionListScreen, the Guide equivalent.
+        // Convenience action matching SessionListScreen's - lets the
+        // user log out without backing out to HomeScreen first.
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

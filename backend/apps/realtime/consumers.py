@@ -67,13 +67,14 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 user = User.objects.get(pk=access["user_id"])
             except (TokenError, User.DoesNotExist, KeyError):
                 return False
-            if user.role == User.Role.GUIDE:
-                return session.owner_id == user.id
-            if user.role == User.Role.INTERPRETER:
-                return ChannelInterpreter.objects.filter(
-                    channel__session=session, interpreter=user
-                ).exists()
-            return False
+            # Guide-ness is ownership, interpreter-ness is a channel
+            # claim - neither is an account role. Mirrors
+            # IsSessionParticipant on the REST side.
+            if session.owner_id == user.id:
+                return True
+            return ChannelInterpreter.objects.filter(
+                channel__session=session, interpreter=user
+            ).exists()
 
         if raw_listener_uuid:
             try:

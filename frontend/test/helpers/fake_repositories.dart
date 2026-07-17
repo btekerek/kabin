@@ -57,7 +57,6 @@ class FakeAuthRepository extends AuthRepository {
   Future<User> register({
     required String email,
     required String password,
-    required String role,
   }) async {
     registerCalled = true;
     return userToReturn!;

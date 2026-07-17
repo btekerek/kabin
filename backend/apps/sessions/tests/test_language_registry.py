@@ -13,7 +13,7 @@ from apps.accounts.models import User
 
 @pytest.fixture
 def guide(db):
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user

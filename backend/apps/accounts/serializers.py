@@ -23,9 +23,6 @@ from apps.core.exceptions import KabinAPIException
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    # Declared explicitly (required=True) because the model field itself
-    # is blank=True at the DB level - see models.py for why.
-    role = serializers.ChoiceField(choices=User.Role.choices, required=True)
     # ModelSerializer would otherwise auto-attach a UniqueValidator here
     # (because email has unique=True on the model) which fires before,
     # and instead of, validate_email() below - producing a generic 400
@@ -35,7 +32,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "password", "role"]
+        fields = ["email", "password"]
 
     def validate_email(self, value):
         value = value.lower().strip()
@@ -50,7 +47,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         email = validated_data["email"]
         username = self._unique_username_from_email(email)
-        user = User(email=email, username=username, role=validated_data["role"])
+        user = User(email=email, username=username)
         user.set_password(validated_data["password"])
         user.save()
         return user
@@ -69,7 +66,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "role"]
+        fields = ["id", "email"]
         read_only_fields = fields
 
 
