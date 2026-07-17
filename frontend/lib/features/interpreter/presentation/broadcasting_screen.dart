@@ -9,11 +9,19 @@ import '../../chat/presentation/chat_args.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
-/// Owns one AgoraChannelController for the lifetime of this screen, same
-/// lifecycle reasoning as ListeningScreen. Unlike the Listener flow,
-/// leaving here also has to release the channel claim server-side
-/// (ChannelLeaveView) so another interpreter can pick it up - that's why
-/// this is a ConsumerStatefulWidget rather than plain StatefulWidget.
+/// Owns two AgoraChannelControllers for the lifetime of this screen:
+/// [_controller] broadcasts the interpreter's own translation into
+/// their claimed channel, [_sourceController] simultaneously listens
+/// (audience-only, no mic) to the session's source channel - the
+/// Guide's live mic - since an interpreter needs to hear what's being
+/// said to translate it. [_sourceController] is simply never joined
+/// when [BroadcastingArgs.joinResult.source] is null (the interpreter
+/// claimed the source channel itself - nothing to relay to it).
+///
+/// Unlike the Listener flow, leaving here also has to release the
+/// channel claim server-side (ChannelLeaveView) so another interpreter
+/// can pick it up - that's why this is a ConsumerStatefulWidget rather
+/// than plain StatefulWidget.
 class BroadcastingScreen extends ConsumerStatefulWidget {
   const BroadcastingScreen({super.key, required this.args});
 
@@ -25,7 +33,9 @@ class BroadcastingScreen extends ConsumerStatefulWidget {
 
 class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   final _controller = AgoraChannelController();
+  final _sourceController = AgoraChannelController();
   Object? _connectError;
+  Object? _sourceConnectError;
   Object? _leaveError;
   bool _muted = false;
   bool _leaving = false;
@@ -34,6 +44,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   void initState() {
     super.initState();
     _connect();
+    _connectSource();
   }
 
   Future<void> _connect() async {
@@ -46,6 +57,25 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
       );
     } catch (error) {
       if (mounted) setState(() => _connectError = error);
+    }
+  }
+
+  /// Independent of _connect(): a failure to hear the source channel
+  /// shouldn't block broadcasting the interpreter's own translation, so
+  /// this has its own try/catch and error state rather than sharing
+  /// _connectError.
+  Future<void> _connectSource() async {
+    final source = widget.args.joinResult.source;
+    if (source == null) return;
+    try {
+      await _sourceController.join(
+        appId: source.agoraAppId,
+        channelName: source.agoraChannelName,
+        token: source.agoraToken,
+        asBroadcaster: false,
+      );
+    } catch (error) {
+      if (mounted) setState(() => _sourceConnectError = error);
     }
   }
 
@@ -68,6 +98,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     });
     try {
       await _controller.leave();
+      await _sourceController.leave();
       await ref
           .read(interpreterRepositoryProvider)
           .leave(widget.args.interpreterCode);
@@ -82,11 +113,14 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _sourceController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasSource = widget.args.joinResult.source != null;
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.args.joinResult.channel.language)),
       body: Center(
@@ -101,10 +135,33 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 builder: (context, snapshot) =>
                     Text(_statusLabel(snapshot.data)),
               ),
+              const SizedBox(height: 8),
+              if (hasSource)
+                StreamBuilder<AgoraConnectionStatus>(
+                  stream: _sourceController.statusStream,
+                  initialData: _sourceController.status,
+                  builder: (context, snapshot) => Text(
+                    'Original audio: ${_statusLabel(snapshot.data)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                )
+              else
+                Text(
+                  'This is the original audio channel.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               if (_connectError != null) ...[
                 const SizedBox(height: 16),
                 Text(
                   'Could not connect. Check your connection and try again.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              if (_sourceConnectError != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Could not hear the original audio. Check your connection and try again.',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                   textAlign: TextAlign.center,
                 ),

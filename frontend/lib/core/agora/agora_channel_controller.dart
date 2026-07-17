@@ -33,6 +33,14 @@ class AgoraChannelController {
     required String token,
     required bool asBroadcaster,
   }) async {
+    // Defensive: if a previous join on this same controller failed
+    // without the caller ever calling leave() (e.g. a "try again" retry
+    // after AgoraConnectionStatus.failed), release that engine first
+    // rather than leaking it under a fresh one.
+    if (_engine != null) {
+      await leave();
+    }
+
     if (asBroadcaster) {
       await _requestMicrophonePermission();
     }

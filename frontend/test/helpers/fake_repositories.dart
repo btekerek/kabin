@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:kabin/core/agora/agora_join_result.dart';
 import 'package:kabin/core/auth/token_pair.dart';
 import 'package:kabin/features/auth/data/auth_repository.dart';
 import 'package:kabin/features/auth/domain/user.dart';
@@ -123,6 +124,20 @@ class FakeSessionRepository extends SessionRepository {
   Future<List<Language>> languages() async {
     calledActions.add('languages');
     return languagesToReturn;
+  }
+
+  AgoraJoinResult? broadcastResultToReturn;
+  Object? nextBroadcastError;
+
+  @override
+  Future<AgoraJoinResult> broadcast(int id) async {
+    calledActions.add('broadcast:$id');
+    if (nextBroadcastError != null) {
+      final error = nextBroadcastError!;
+      nextBroadcastError = null;
+      throw error;
+    }
+    return broadcastResultToReturn!;
   }
 }
 
