@@ -79,10 +79,10 @@ class AuthController extends AsyncNotifier<User?> {
     });
   }
 
-  /// This slice only builds Guide screens, so registration always
-  /// creates a Guide account - see the register screen for where that's
-  /// fixed. The Interpreter registration flow reuses this same method
-  /// with role: 'interpreter' once that slice exists.
+  /// role is 'guide' or 'interpreter', picked by the user on the
+  /// register screen - the backend and router both already handle
+  /// either account type end to end (see RegisterSerializer,
+  /// IsGuide/IsInterpreter, and app_router.dart's redirect logic).
   Future<void> register({
     required String email,
     required String password,

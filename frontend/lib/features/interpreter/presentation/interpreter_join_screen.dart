@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
+import '../../auth/state/auth_providers.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -51,7 +52,21 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Join as interpreter')),
+      appBar: AppBar(
+        title: const Text('Join as interpreter'),
+        // This is the Interpreter role's landing screen (see
+        // app_router.dart's redirect logic) - there's nowhere else in
+        // the app's own nav stack to go back to, so without this the
+        // account had no way out at all except killing the app. Mirrors
+        // the logout action on SessionListScreen, the Guide equivalent.
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log out',
+            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

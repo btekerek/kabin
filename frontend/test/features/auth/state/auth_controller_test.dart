@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kabin/core/auth/auth_session.dart';
 import 'package:kabin/core/auth/token_pair.dart';
+import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/domain/user.dart';
 import 'package:kabin/features/auth/state/auth_providers.dart';
 
@@ -14,7 +15,7 @@ void main() {
 
   setUp(() {
     fakeAuthRepository = FakeAuthRepository();
-    authSession = AuthSession(storage: FakeTokenStorage());
+    authSession = AuthSession(storage: TokenStorage());
     container = ProviderContainer(
       overrides: [
         authSessionProvider.overrideWithValue(authSession),

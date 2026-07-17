@@ -16,6 +16,7 @@ class KabinApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Kabin',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
       routerConfig: router,
     );

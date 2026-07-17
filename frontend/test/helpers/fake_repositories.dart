@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:kabin/core/auth/token_pair.dart';
-import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/data/auth_repository.dart';
 import 'package:kabin/features/auth/domain/user.dart';
 import 'package:kabin/features/chat/data/chat_repository.dart';
@@ -10,22 +9,6 @@ import 'package:kabin/features/chat/domain/message.dart';
 import 'package:kabin/features/sessions/data/session_repository.dart';
 import 'package:kabin/features/sessions/domain/language.dart';
 import 'package:kabin/features/sessions/domain/session.dart';
-
-/// In-memory stand-in for TokenStorage so tests never touch the real
-/// flutter_secure_storage platform channel (which isn't available in a
-/// plain `flutter_test` run without extra platform-channel mocking).
-class FakeTokenStorage implements TokenStorage {
-  String? _refreshToken;
-
-  @override
-  Future<String?> readRefreshToken() async => _refreshToken;
-
-  @override
-  Future<void> saveRefreshToken(String token) async => _refreshToken = token;
-
-  @override
-  Future<void> clear() async => _refreshToken = null;
-}
 
 /// A DioException with no real request behind it - just enough shape
 /// for code that pattern-matches on `is DioException` (AuthController's
