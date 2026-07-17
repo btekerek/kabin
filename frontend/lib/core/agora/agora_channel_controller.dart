@@ -15,6 +15,7 @@ enum AgoraConnectionStatus { disconnected, connecting, connected, failed }
 class AgoraChannelController {
   RtcEngine? _engine;
   AgoraConnectionStatus _status = AgoraConnectionStatus.disconnected;
+  Timer? _statusPollTimer;
 
   final _statusController = StreamController<AgoraConnectionStatus>.broadcast();
 
@@ -83,6 +84,44 @@ class AgoraChannelController {
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
       ),
     );
+
+    _startConnectionStatePolling(engine);
+  }
+
+  /// Fallback for an observed Windows-plugin gap: the native SDK's own
+  /// log can show a fully successful join (onJoinChannelSuccess firing
+  /// natively, elapsed ~300ms) while neither onJoinChannelSuccess nor
+  /// onConnectionStateChanged ever reaches this Dart event handler,
+  /// leaving the UI stuck on "connecting" forever despite the engine
+  /// actually being connected. RtcEngine.getConnectionState() is ground
+  /// truth queried directly, independent of whether that event bridge
+  /// delivers - so polling it catches a connect the callback missed.
+  /// Also caps the wait: if genuinely still not connected after 20s,
+  /// report failed instead of hanging indefinitely with no feedback.
+  void _startConnectionStatePolling(RtcEngine engine) {
+    _statusPollTimer?.cancel();
+    var elapsed = Duration.zero;
+    const interval = Duration(milliseconds: 500);
+    const giveUpAfter = Duration(seconds: 20);
+
+    _statusPollTimer = Timer.periodic(interval, (timer) async {
+      if (_status == AgoraConnectionStatus.connected ||
+          _status == AgoraConnectionStatus.failed) {
+        timer.cancel();
+        return;
+      }
+
+      elapsed += interval;
+      final state = await engine.getConnectionState();
+      if (state == ConnectionStateType.connectionStateConnected) {
+        _setStatus(AgoraConnectionStatus.connected);
+        timer.cancel();
+      } else if (state == ConnectionStateType.connectionStateFailed ||
+          elapsed >= giveUpAfter) {
+        _setStatus(AgoraConnectionStatus.failed);
+        timer.cancel();
+      }
+    });
   }
 
   /// Interpreter-only: mute/unmute the local mic without leaving the
@@ -93,6 +132,7 @@ class AgoraChannelController {
   }
 
   Future<void> leave() async {
+    _statusPollTimer?.cancel();
     final engine = _engine;
     if (engine == null) return;
     _engine = null;
@@ -102,6 +142,7 @@ class AgoraChannelController {
   }
 
   void dispose() {
+    _statusPollTimer?.cancel();
     unawaited(leave());
     _statusController.close();
   }

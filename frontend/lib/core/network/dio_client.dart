@@ -26,7 +26,17 @@ class DioClientFactory {
       SingleFlightRefresh<TokenPair>();
 
   Dio create() {
-    final dio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConfig.baseUrl,
+        // Without these, a misconfigured/unreachable host (see
+        // ApiConfig's platform-default footgun) hangs for the OS's own
+        // TCP timeout - tens of seconds, with no feedback distinguishing
+        // "still trying" from "frozen." Fail loud and fast instead.
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 15),
+      ),
+    );
 
     dio.interceptors.add(
       InterceptorsWrapper(
