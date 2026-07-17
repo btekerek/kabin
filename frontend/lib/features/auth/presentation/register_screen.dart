@@ -17,6 +17,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  String _role = 'guide';
 
   @override
   void dispose() {
@@ -28,13 +29,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    // This app only has Guide screens so far (see ADR-007) - Interpreter
-    // registration reuses AuthController.register with role:
-    // 'interpreter' once that flow exists.
     await ref.read(authControllerProvider.notifier).register(
           email: _emailController.text.trim(),
           password: _passwordController.text,
-          role: 'guide',
+          role: _role,
         );
   }
 
@@ -43,7 +41,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final authState = ref.watch(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create a Guide account')),
+      appBar: AppBar(title: const Text('Create an account')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -52,6 +50,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                "I'm joining as a...",
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'guide',
+                    label: Text('Guide'),
+                    icon: Icon(Icons.mic_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'interpreter',
+                    label: Text('Interpreter'),
+                    icon: Icon(Icons.headset_mic_outlined),
+                  ),
+                ],
+                selected: {_role},
+                onSelectionChanged: (selection) =>
+                    setState(() => _role = selection.first),
+              ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
