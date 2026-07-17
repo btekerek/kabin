@@ -23,7 +23,7 @@ application = URLRouter(websocket_urlpatterns)
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -31,7 +31,7 @@ def guide():
 
 @pytest.fixture
 def other_guide():
-    user = User(email="other-guide@example.com", username="other-guide", role=User.Role.GUIDE)
+    user = User(email="other-guide@example.com", username="other-guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -39,7 +39,7 @@ def other_guide():
 
 @pytest.fixture
 def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+    user = User(email="interpreter@example.com", username="interpreter")
     user.set_password("password123!")
     user.save()
     return user

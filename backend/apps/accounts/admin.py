@@ -5,8 +5,7 @@ from apps.accounts.models import User
 
 
 class KabinUserAdmin(UserAdmin):
-    fieldsets = UserAdmin.fieldsets + (("Kabin", {"fields": ("role",)}),)
-    list_display = ("email", "username", "role", "is_staff")
+    list_display = ("email", "username", "is_staff")
 
 
 admin.site.register(User, KabinUserAdmin)

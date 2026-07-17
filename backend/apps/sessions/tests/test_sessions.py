@@ -16,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -24,15 +24,15 @@ def guide():
 
 @pytest.fixture
 def other_guide():
-    user = User(email="other-guide@example.com", username="other-guide", role=User.Role.GUIDE)
+    user = User(email="other-guide@example.com", username="other-guide")
     user.set_password("password123!")
     user.save()
     return user
 
 
 @pytest.fixture
-def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+def another_user():
+    user = User(email="another-user@example.com", username="another-user")
     user.set_password("password123!")
     user.save()
     return user
@@ -87,14 +87,17 @@ def test_session_creation_rejects_duplicate_target_languages(guide):
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
-def test_interpreter_cannot_create_session(interpreter):
-    client = _authed_client(interpreter)
+def test_any_authenticated_user_can_create_a_session(another_user):
+    # There's no fixed account role (see permissions.py) - any logged in
+    # user can create a session and becomes its owner ("guide") by doing
+    # so.
+    client = _authed_client(another_user)
     response = client.post(
         "/api/sessions/",
         {"name": "Kabin Conf", "source_language": "en", "target_languages": ["tr"]},
         format="json",
     )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_201_CREATED
 
 
 def test_list_only_returns_own_sessions(guide, other_guide):

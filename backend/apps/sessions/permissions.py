@@ -1,46 +1,36 @@
-"""Session-scoped permissions."""
+"""Session-scoped permissions.
+
+There is no fixed account role (see apps.accounts.models.User) - "guide"
+and "interpreter" are per-session relationships derived from who owns a
+Session or holds a ChannelInterpreter claim, not a property checked on
+the account itself. Any authenticated user can create a session
+(IsSessionOwner then gates further action on it to whoever owns it) and/
+or claim any open channel (no permission class needed beyond
+IsAuthenticated - ChannelJoinView's own claim logic in views.py handles
+the "already someone else's" conflict).
+"""
 
 import uuid as uuid_lib
 
 from rest_framework.permissions import BasePermission
 
-from apps.accounts.models import User
 from apps.sessions.models import ChannelInterpreter, ListenerSession
 
 
-class IsGuide(BasePermission):
-    """Only Guide accounts may create/manage sessions."""
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user and request.user.is_authenticated and request.user.role == User.Role.GUIDE
-        )
-
-
 class IsSessionOwner(BasePermission):
-    """Object-level check: only the owning Guide may act on a session."""
+    """Object-level check: only the owning user may act on a session."""
 
     def has_object_permission(self, request, view, obj):
         return obj.owner_id == request.user.id
-
-
-class IsInterpreter(BasePermission):
-    """Only Interpreter accounts may claim/release channels."""
-
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and request.user.role == User.Role.INTERPRETER
-        )
 
 
 class IsSessionParticipant(BasePermission):
     """Object-level: true if the caller is actually part of this session.
 
     Covers all three sender kinds from ADR-005 with one check: the
-    owning guide, an interpreter currently holding a claim on one of the
-    session's channels, or a listener with a ListenerSession row. For
+    owning user (guide, by virtue of ownership), a user currently
+    holding a claim on one of the session's channels (interpreter, by
+    virtue of the claim), or a listener with a ListenerSession row. For
     listeners there's no auth token to check, so their identity comes
     from `listener_uuid` in the request body (POST) or query params
     (GET) instead - same anonymous-identity model as the rest of the
@@ -50,13 +40,11 @@ class IsSessionParticipant(BasePermission):
     def has_object_permission(self, request, view, session):
         user = request.user
         if user and user.is_authenticated:
-            if user.role == User.Role.GUIDE:
-                return session.owner_id == user.id
-            if user.role == User.Role.INTERPRETER:
-                return ChannelInterpreter.objects.filter(
-                    channel__session=session, interpreter=user
-                ).exists()
-            return False
+            if session.owner_id == user.id:
+                return True
+            return ChannelInterpreter.objects.filter(
+                channel__session=session, interpreter=user
+            ).exists()
 
         raw_listener_uuid = request.data.get("listener_uuid") or request.query_params.get(
             "listener_uuid"

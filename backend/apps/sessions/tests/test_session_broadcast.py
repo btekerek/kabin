@@ -16,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -24,15 +24,15 @@ def guide():
 
 @pytest.fixture
 def other_guide():
-    user = User(email="other-guide@example.com", username="other-guide", role=User.Role.GUIDE)
+    user = User(email="other-guide@example.com", username="other-guide")
     user.set_password("password123!")
     user.save()
     return user
 
 
 @pytest.fixture
-def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+def unrelated_user():
+    user = User(email="unrelated-user@example.com", username="unrelated-user")
     user.set_password("password123!")
     user.save()
     return user
@@ -96,6 +96,6 @@ def test_non_owner_guide_cannot_broadcast(other_guide, session):
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
-def test_interpreter_cannot_broadcast_to_session(interpreter, session):
-    response = _authed_client(interpreter).post(f"/api/sessions/{session['id']}/broadcast/")
+def test_unrelated_user_cannot_broadcast_to_session(unrelated_user, session):
+    response = _authed_client(unrelated_user).post(f"/api/sessions/{session['id']}/broadcast/")
     assert response.status_code == status.HTTP_403_FORBIDDEN
