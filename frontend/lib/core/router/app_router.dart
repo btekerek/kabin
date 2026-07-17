@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
+import '../../features/chat/presentation/chat_args.dart';
+import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/interpreter/presentation/broadcasting_args.dart';
 import '../../features/interpreter/presentation/broadcasting_screen.dart';
 import '../../features/interpreter/presentation/interpreter_join_screen.dart';
@@ -29,12 +31,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       final onSplash = state.matchedLocation == '/splash';
-      final isListenerRoute = state.matchedLocation == '/join' ||
-          state.matchedLocation == '/listen';
-
-      // The Listener flow has no account at all (see ADR-002) - it
-      // never participates in the Guide auth redirect below.
-      if (isListenerRoute) return null;
+      // /chat is shared by all three roles (see IsSessionParticipant on
+      // the backend) - a Listener reaches it with no account at all
+      // (see ADR-002), so it has to bypass the auth gate below the same
+      // way /join and /listen do. That bypass is harmless for a logged
+      // in Guide/Interpreter too: it just means the redirect check is
+      // skipped for this one location, not that anything is blocked.
+      final bypassesAuthGate = state.matchedLocation == '/join' ||
+          state.matchedLocation == '/listen' ||
+          state.matchedLocation == '/chat';
+      if (bypassesAuthGate) return null;
 
       return authState.when(
         loading: () => onSplash ? null : '/splash',
@@ -84,6 +90,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/broadcast',
         builder: (context, state) =>
             BroadcastingScreen(args: state.extra! as BroadcastingArgs),
+      ),
+      GoRoute(
+        path: '/chat',
+        builder: (context, state) => ChatScreen(args: state.extra! as ChatArgs),
       ),
       GoRoute(
         path: '/sessions',

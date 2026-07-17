@@ -18,7 +18,12 @@ from apps.sessions.models import Channel, Message, Session
 class ChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Channel
-        fields = ["id", "language", "interpreter_code", "is_source"]
+        # `session` (the owning session's id) is included so
+        # ChannelJoinView's response gives an interpreter enough to
+        # reach session-scoped endpoints (e.g. chat) - it never learns
+        # the session id any other way, since interpreters only ever
+        # identify themselves by channel code (see ADR-003).
+        fields = ["id", "session", "language", "interpreter_code", "is_source"]
         read_only_fields = fields
 
 

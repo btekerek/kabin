@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/errors/api_error_message.dart';
+import '../../auth/state/auth_providers.dart';
+import '../../chat/presentation/chat_args.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -120,6 +122,20 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 onPressed: _leaving ? null : _toggleMute,
                 icon: Icon(_muted ? Icons.mic_off : Icons.mic),
                 label: Text(_muted ? 'Unmute' : 'Mute'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => context.push(
+                  '/chat',
+                  extra: ChatArgs(
+                    sessionId: widget.args.joinResult.channel.sessionId,
+                    socketQueryParams: {
+                      'token': ref.read(authSessionProvider).accessToken ?? '',
+                    },
+                    title: 'Chat',
+                  ),
+                ),
+                child: const Text('Chat'),
               ),
               const SizedBox(height: 12),
               OutlinedButton(

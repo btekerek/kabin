@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
+import '../../auth/state/auth_providers.dart';
+import '../../chat/presentation/chat_args.dart';
 import '../domain/channel.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
@@ -76,6 +79,19 @@ class _DashboardBody extends ConsumerWidget {
                 onPressed: isTransitioning ? null : controller.end,
                 child: const Text('End session'),
               ),
+            OutlinedButton(
+              onPressed: () => context.push(
+                '/chat',
+                extra: ChatArgs(
+                  sessionId: session.id,
+                  socketQueryParams: {
+                    'token': ref.read(authSessionProvider).accessToken ?? '',
+                  },
+                  title: 'Chat - ${session.name}',
+                ),
+              ),
+              child: const Text('Chat'),
+            ),
           ],
         ),
         if (detailState.hasError) ...[
