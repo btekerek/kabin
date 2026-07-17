@@ -84,7 +84,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // retry/dismiss controls - catching here just stops the rethrow from
     // becoming an unhandled async error, it isn't swallowing anything
     // the user can't already see and act on.
-    unawaited(_controller.send(body: body, listenerUuid: widget.args.listenerUuid));
+    unawaited(
+        _controller.send(body: body, listenerUuid: widget.args.listenerUuid));
   }
 
   @override
@@ -103,7 +104,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: AppBar(title: Text(widget.args.title)),
       body: Column(
         children: [
-          if (_status != ChatConnectionStatus.connected) _StatusBanner(status: _status),
+          if (_status != ChatConnectionStatus.connected)
+            _StatusBanner(status: _status),
           Expanded(
             child: itemCount == 0
                 ? const Center(child: Text('No messages yet'))
@@ -170,7 +172,9 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = status == ChatConnectionStatus.connecting ? 'Connecting...' : 'Connection lost';
+    final label = status == ChatConnectionStatus.connecting
+        ? 'Connecting...'
+        : 'Connection lost';
     return Container(
       width: double.infinity,
       color: Theme.of(context).colorScheme.errorContainer,
@@ -196,7 +200,8 @@ class _MessageTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_senderLabel(message.senderKind), style: Theme.of(context).textTheme.labelSmall),
+          Text(_senderLabel(message.senderKind),
+              style: Theme.of(context).textTheme.labelSmall),
           Text(message.body),
         ],
       ),

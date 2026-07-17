@@ -41,7 +41,8 @@ class ChatRepository {
     required String body,
     String? listenerUuid,
   }) async {
-    final response = await _dio.post('/api/sessions/$sessionId/messages/', data: {
+    final response =
+        await _dio.post('/api/sessions/$sessionId/messages/', data: {
       'body': body,
       if (listenerUuid != null) 'listener_uuid': listenerUuid,
     });

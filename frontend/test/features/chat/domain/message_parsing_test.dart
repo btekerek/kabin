@@ -45,7 +45,8 @@ void main() {
 
       expect(message.senderKind, SenderKind.listener);
       expect(message.senderId, isNull);
-      expect(message.senderListenerUuid, 'b3b8c9d0-1234-4a5b-8c6d-000000000000');
+      expect(
+          message.senderListenerUuid, 'b3b8c9d0-1234-4a5b-8c6d-000000000000');
     });
   });
 }
