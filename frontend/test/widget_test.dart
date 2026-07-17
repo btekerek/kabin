@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kabin/core/auth/auth_session.dart';
+import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/state/auth_providers.dart';
 import 'package:kabin/main.dart';
 
@@ -18,7 +19,7 @@ void main() {
       ProviderScope(
         overrides: [
           authSessionProvider
-              .overrideWithValue(AuthSession(storage: FakeTokenStorage())),
+              .overrideWithValue(AuthSession(storage: TokenStorage())),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         ],
         child: const KabinApp(),

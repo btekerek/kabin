@@ -1,25 +1,28 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-/// Persists the refresh token in encrypted, platform-backed storage
-/// (Android Keystore / iOS Keychain via flutter_secure_storage) rather
-/// than shared_preferences, which is unencrypted and reserved for the
-/// listener UUID (not a credential) - see ADR-001.
+/// Holds the refresh token in memory only, for the life of this process -
+/// deliberately never persisted to disk (not flutter_secure_storage, not
+/// shared_preferences), matching this project's original design (see
+/// the canli-ceviri reference implementation's ApiService, which keeps
+/// its token in a plain in-memory field for the same reason).
 ///
-/// The access token is never persisted here; it lives only in memory
-/// (AuthSession), re-issued on every refresh and lost on app kill, which
-/// is fine since it's short-lived anyway.
+/// This was previously backed by flutter_secure_storage, which on
+/// Windows uses Windows Credential Manager keyed by a fixed target name
+/// shared by every running copy of the app under one Windows account -
+/// so two `flutter run -d windows` instances on the same dev machine
+/// silently shared one login, and logging in as one role in one window
+/// logged the other window in too. Going in-memory-only removes the
+/// shared store entirely, so that can't happen, at the cost of the app
+/// no longer remembering a login across a full restart - every fresh
+/// launch starts at the login screen.
 class TokenStorage {
-  TokenStorage({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+  String? _refreshToken;
 
-  static const _refreshKey = 'kabin.refresh_token';
+  Future<String?> readRefreshToken() async => _refreshToken;
 
-  final FlutterSecureStorage _storage;
+  Future<void> saveRefreshToken(String token) async {
+    _refreshToken = token;
+  }
 
-  Future<String?> readRefreshToken() => _storage.read(key: _refreshKey);
-
-  Future<void> saveRefreshToken(String token) =>
-      _storage.write(key: _refreshKey, value: token);
-
-  Future<void> clear() => _storage.delete(key: _refreshKey);
+  Future<void> clear() async {
+    _refreshToken = null;
+  }
 }
