@@ -12,10 +12,8 @@ Agora's edge to reject the connection silently (no local onError,
 join just never completes). See ADR-002 for why listeners get an
 audience-role, short-TTL token bound to a single channel; ADR-003 for
 why interpreters get a separate publisher-role builder rather than a
-shared function with a role flag; and ADR-004 for why a listener
-granted the Q&A floor gets its own publisher-role builder too, bound
-to the source channel rather than whatever channel they were
-listening to.
+shared function with a role flag. Q&A (raise hand / floor / speak) is
+not implemented yet - see ADR-004 for the deferred design.
 """
 
 import time
@@ -47,24 +45,6 @@ def build_listener_token(channel_name: str) -> str:
 
 def build_interpreter_token(channel_name: str) -> str:
     """Publisher-role token: can broadcast audio into the channel."""
-    expire_at = int(time.time()) + settings.AGORA_TOKEN_TTL_SECONDS
-    return RtcTokenBuilder.buildTokenWithUid(
-        settings.AGORA_APP_ID,
-        settings.AGORA_APP_CERTIFICATE,
-        channel_name,
-        _JOIN_UID,
-        Role_Publisher,
-        expire_at,
-    )
-
-
-def build_floor_token(channel_name: str) -> str:
-    """Publisher-role token for a listener granted the Q&A floor.
-
-    Same role as build_interpreter_token - kept as a separate function
-    (see ADR-004) so each caller's intent is obvious from the name it
-    imports, not from a role argument it has to pass correctly.
-    """
     expire_at = int(time.time()) + settings.AGORA_TOKEN_TTL_SECONDS
     return RtcTokenBuilder.buildTokenWithUid(
         settings.AGORA_APP_ID,

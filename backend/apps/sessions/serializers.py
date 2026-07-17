@@ -12,7 +12,7 @@ from rest_framework import serializers
 
 from apps.core.exceptions import KabinAPIException
 from apps.core.languages import is_supported_language
-from apps.sessions.models import Channel, Message, RaiseHandEntry, Session
+from apps.sessions.models import Channel, Message, Session
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -70,23 +70,6 @@ class InterpreterCodeSerializer(serializers.Serializer):
     """Shared input shape for both channel join and leave."""
 
     interpreter_code = serializers.CharField(max_length=20)
-
-
-class ListenerUuidSerializer(serializers.Serializer):
-    """Shared input shape for raise-hand, lower-hand, and speak."""
-
-    listener_uuid = serializers.UUIDField()
-
-
-class RaiseHandEntrySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RaiseHandEntry
-        fields = ["listener_uuid", "created_at"]
-        read_only_fields = fields
-
-
-class GrantFloorSerializer(serializers.Serializer):
-    listener_uuid = serializers.UUIDField()
 
 
 class MessageSerializer(serializers.ModelSerializer):

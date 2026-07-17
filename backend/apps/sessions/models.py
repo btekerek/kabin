@@ -9,8 +9,10 @@ so lookups must be rate-limited (that's enforced at the view layer, not
 here).
 
 Status is a small state machine, not a free-form field: not_started ->
-active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to).
+active -> ended, with ended treated as genuinely terminal (see
+Session.can_transition_to). Q&A (raise hand / floor / speak) is not
+implemented yet - see ADR-004 for the deferred design - so the state
+machine has no qa_mode state until that's built.
 
 ListenerSession tracks anonymous listener joins (see ADR-002) - one row
 per (session, listener_uuid), used to enforce the listener cap and to
@@ -19,11 +21,6 @@ let a listener switch channels without losing/re-spending their spot.
 ChannelInterpreter tracks which interpreter currently owns a channel
 (see ADR-003) - one row per channel, since exactly one interpreter may
 broadcast into a channel at a time.
-
-RaiseHandEntry is the Q&A queue (see ADR-004) - who's waiting to be
-granted the floor. `Session.approved_listener_uuid` (below) is who
-currently *has* the floor; it's a single field, not a table, because
-only one listener can hold it at a time.
 
 Message is chat (see ADR-005) - one table for all three sender kinds,
 since chat rendering needs them interleaved in a single timeline anyway.
@@ -37,15 +34,13 @@ class Session(models.Model):
     class Status(models.TextChoices):
         NOT_STARTED = "not_started", "Not started"
         ACTIVE = "active", "Active"
-        QA_MODE = "qa_mode", "Q&A"
         ENDED = "ended", "Ended"
 
     # Legal transitions, enforced server-side so a client bug can never
     # walk a session back out of "ended".
     _ALLOWED_TRANSITIONS = {
         Status.NOT_STARTED: {Status.ACTIVE},
-        Status.ACTIVE: {Status.QA_MODE, Status.NOT_STARTED, Status.ENDED},
-        Status.QA_MODE: {Status.ACTIVE, Status.NOT_STARTED, Status.ENDED},
+        Status.ACTIVE: {Status.NOT_STARTED, Status.ENDED},
         Status.ENDED: set(),
     }
 
@@ -56,7 +51,6 @@ class Session(models.Model):
     source_language = models.CharField(max_length=10)
     listener_code = models.CharField(max_length=20, unique=True, db_index=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_STARTED)
-    approved_listener_uuid = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -131,30 +125,6 @@ class ChannelInterpreter(models.Model):
 
     def __str__(self):
         return f"{self.interpreter} on {self.channel}"
-
-
-class RaiseHandEntry(models.Model):
-    """One row per listener currently waiting in the Q&A queue (ADR-004).
-
-    Ordered by `created_at` (FIFO). Raising a hand while already queued
-    is a no-op at the view layer, not enforced here beyond the unique
-    constraint preventing a duplicate row.
-    """
-
-    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="raised_hands")
-    listener_uuid = models.UUIDField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["session", "listener_uuid"], name="unique_raised_hand_per_session"
-            )
-        ]
-        ordering = ["created_at", "id"]
-
-    def __str__(self):
-        return f"{self.listener_uuid} waiting in {self.session_id}"
 
 
 class Message(models.Model):

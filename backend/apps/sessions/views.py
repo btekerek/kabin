@@ -24,26 +24,22 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.core.exceptions import KabinAPIException
-from apps.sessions.agora import build_floor_token, build_interpreter_token, build_listener_token
+from apps.sessions.agora import build_interpreter_token, build_listener_token
 from apps.sessions.codes import generate_interpreter_code, generate_listener_code
 from apps.sessions.models import (
     Channel,
     ChannelInterpreter,
     ListenerSession,
     Message,
-    RaiseHandEntry,
     Session,
 )
 from apps.sessions.permissions import IsGuide, IsInterpreter, IsSessionOwner, IsSessionParticipant
 from apps.sessions.serializers import (
     ChannelSerializer,
-    GrantFloorSerializer,
     InterpreterCodeSerializer,
     ListenerChannelSerializer,
-    ListenerUuidSerializer,
     MessageCreateSerializer,
     MessageSerializer,
-    RaiseHandEntrySerializer,
     SessionCreateSerializer,
     SessionJoinSerializer,
     SessionLookupInputSerializer,
@@ -305,202 +301,11 @@ class SessionStartView(_SessionTransitionView):
 
 
 class SessionStopView(_SessionTransitionView):
-    """Stop pauses the event: not_started status, and clears the Q&A
-    queue and any granted floor (see ADR-004) - a fresh Q&A period
-    starts clean the next time the guide enters qa_mode."""
-
     target_status = Session.Status.NOT_STARTED
-
-    def after_transition(self, session):
-        RaiseHandEntry.objects.filter(session=session).delete()
-        if session.approved_listener_uuid is not None:
-            session.approved_listener_uuid = None
-            session.save(update_fields=["approved_listener_uuid"])
 
 
 class SessionEndView(_SessionTransitionView):
     target_status = Session.Status.ENDED
-
-
-class SessionQaModeView(_SessionTransitionView):
-    target_status = Session.Status.QA_MODE
-
-
-class RaiseHandView(APIView):
-    """Public: listener joins the Q&A queue.
-
-    Requires the session to be in qa_mode and the caller to already be a
-    ListenerSession member (see ADR-004) - you can't ask a question in a
-    room you haven't joined. Idempotent: raising an already-raised hand
-    just returns the same queue position.
-    """
-
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-
-        if session.status == Session.Status.ENDED:
-            raise KabinAPIException(
-                code="SESSION_ENDED",
-                message="This session has ended.",
-                status_code=400,
-            )
-        if session.status != Session.Status.QA_MODE:
-            raise KabinAPIException(
-                code="NOT_IN_QA_MODE",
-                message="You can only raise your hand during Q&A.",
-                status_code=400,
-            )
-
-        input_serializer = ListenerUuidSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        listener_uuid = input_serializer.validated_data["listener_uuid"]
-
-        if not ListenerSession.objects.filter(
-            session=session, listener_uuid=listener_uuid
-        ).exists():
-            raise KabinAPIException(
-                code="NOT_JOINED",
-                message="Join the session before raising your hand.",
-                status_code=403,
-            )
-
-        entry, _created = RaiseHandEntry.objects.get_or_create(
-            session=session, listener_uuid=listener_uuid
-        )
-        ordered_ids = list(
-            RaiseHandEntry.objects.filter(session=session).values_list("id", flat=True)
-        )
-        return Response({"position": ordered_ids.index(entry.id) + 1})
-
-
-class LowerHandView(APIView):
-    """Public: listener leaves the Q&A queue - a no-op if not queued."""
-
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-
-        input_serializer = ListenerUuidSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-
-        RaiseHandEntry.objects.filter(
-            session=session, listener_uuid=input_serializer.validated_data["listener_uuid"]
-        ).delete()
-
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class SpeakView(APIView):
-    """Public: listener holding the floor gets a publisher token into the
-    source channel (see ADR-004) - not whatever channel they were
-    listening to, since the question needs to reach the room and every
-    interpreter."""
-
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-
-        if session.status == Session.Status.ENDED:
-            raise KabinAPIException(
-                code="SESSION_ENDED",
-                message="This session has ended.",
-                status_code=400,
-            )
-
-        input_serializer = ListenerUuidSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        listener_uuid = input_serializer.validated_data["listener_uuid"]
-
-        if session.approved_listener_uuid != listener_uuid:
-            raise KabinAPIException(
-                code="NOT_YOUR_TURN",
-                message="You have not been granted the floor.",
-                status_code=403,
-            )
-
-        source_channel = get_object_or_404(Channel, session=session, is_source=True)
-        token = build_floor_token(source_channel.agora_channel_name)
-        return Response(
-            {
-                "agora_app_id": settings.AGORA_APP_ID,
-                "agora_channel_name": source_channel.agora_channel_name,
-                "agora_token": token,
-                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
-                "channel": ListenerChannelSerializer(source_channel).data,
-            }
-        )
-
-
-class SessionQueueView(APIView):
-    """Authenticated (session owner): who's currently waiting, in order."""
-
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
-
-    def get(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-        self.check_object_permissions(request, session)
-
-        entries = RaiseHandEntry.objects.filter(session=session)
-        return Response(RaiseHandEntrySerializer(entries, many=True).data)
-
-
-class GrantFloorView(APIView):
-    """Authenticated (session owner): grant the floor to a queued listener.
-
-    Implicitly replaces whoever held the floor before - see ADR-004 for
-    why that's fine here but not in the interpreter channel-claim flow.
-    """
-
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
-
-    def post(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-        self.check_object_permissions(request, session)
-
-        if session.status == Session.Status.ENDED:
-            raise KabinAPIException(
-                code="SESSION_ENDED",
-                message="This session has ended.",
-                status_code=400,
-            )
-
-        input_serializer = GrantFloorSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        listener_uuid = input_serializer.validated_data["listener_uuid"]
-
-        if not RaiseHandEntry.objects.filter(session=session, listener_uuid=listener_uuid).exists():
-            raise KabinAPIException(
-                code="NOT_IN_QUEUE",
-                message="That listener has not raised their hand.",
-                status_code=400,
-            )
-
-        with transaction.atomic():
-            RaiseHandEntry.objects.filter(session=session, listener_uuid=listener_uuid).delete()
-            session.approved_listener_uuid = listener_uuid
-            session.save(update_fields=["approved_listener_uuid"])
-
-        return Response(SessionSerializer(session).data)
-
-
-class RevokeFloorView(APIView):
-    """Authenticated (session owner): clear the floor, if any is granted."""
-
-    permission_classes = [permissions.IsAuthenticated, IsGuide, IsSessionOwner]
-
-    def post(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-        self.check_object_permissions(request, session)
-
-        if session.approved_listener_uuid is not None:
-            session.approved_listener_uuid = None
-            session.save(update_fields=["approved_listener_uuid"])
-
-        return Response(SessionSerializer(session).data)
 
 
 class MessageListCreateView(APIView):

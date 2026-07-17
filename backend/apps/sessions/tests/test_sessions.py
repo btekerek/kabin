@@ -1,7 +1,7 @@
 """
 Session CRUD + lifecycle tests: atomic creation with channels, ownership
-enforcement, and the not_started/active/qa_mode/ended state machine
-(especially that ended is a one-way door).
+enforcement, and the not_started/active/ended state machine (especially
+that ended is a one-way door).
 """
 
 import pytest
