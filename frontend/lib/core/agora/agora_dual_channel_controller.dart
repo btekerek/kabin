@@ -197,6 +197,45 @@ class AgoraDualChannelController {
     }
   }
 
+  /// Leaves the current secondary (relay) connection, if any, and joins
+  /// a new one - the primary/broadcast connection is untouched, so this
+  /// lets an interpreter switch which channel they're relaying from
+  /// without dropping their own live mic.
+  Future<void> switchSecondary({
+    required String channelName,
+    required String token,
+  }) async {
+    final engine = _engine;
+    if (engine == null) return;
+    final engineEx = engine as RtcEngineEx;
+
+    final oldSecondary = _secondaryConnection;
+    _secondaryConnection = null;
+    if (oldSecondary != null) {
+      await engineEx.leaveChannelEx(connection: oldSecondary);
+    }
+
+    _setSecondaryStatus(AgoraConnectionStatus.connecting);
+    try {
+      final secondaryConnection =
+          RtcConnection(channelId: channelName, localUid: _randomLocalUid());
+      _secondaryConnection = secondaryConnection;
+      await engineEx.joinChannelEx(
+        token: token,
+        connection: secondaryConnection,
+        options: const ChannelMediaOptions(
+          clientRoleType: ClientRoleType.clientRoleAudience,
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+          publishMicrophoneTrack: false,
+          autoSubscribeAudio: true,
+        ),
+      );
+      _startConnectionStatePolling(engine);
+    } catch (_) {
+      _setSecondaryStatus(AgoraConnectionStatus.failed);
+    }
+  }
+
   /// Mutes/unmutes the interpreter's own mic (the primary/broadcast
   /// connection) - there's nothing to mute on the audience-only
   /// secondary connection.
