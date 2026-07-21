@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
@@ -97,9 +98,12 @@ class AgoraDualChannelController {
     // with ERR_INVALID_USER_ID (-121) - it needs an explicit non-zero uid
     // per connection. The backend's tokens are wildcard (uid 0 at
     // generation time), which is exactly what lets the client pick any
-    // real uid here and still validate.
-    final primaryConnection =
-        RtcConnection(channelId: primaryChannelName, localUid: 1);
+    // real uid here and still validate. Now that more than one
+    // interpreter can join the same target channel (see ADR-008), that
+    // uid has to be random rather than a fixed constant - two clients on
+    // the same channel with the same uid conflict.
+    final primaryConnection = RtcConnection(
+        channelId: primaryChannelName, localUid: _randomLocalUid());
     _primaryConnection = primaryConnection;
 
     await engineEx.joinChannelEx(
@@ -112,11 +116,16 @@ class AgoraDualChannelController {
         autoSubscribeAudio: true,
       ),
     );
+    // Joining publishes the mic track immediately - mute right away so
+    // an interpreter always starts silent and has to opt in to going
+    // live, rather than broadcasting the instant they connect.
+    await engineEx.muteLocalAudioStreamEx(
+        mute: true, connection: primaryConnection);
 
     if (secondaryChannelName != null && secondaryToken != null) {
       try {
-        final secondaryConnection =
-            RtcConnection(channelId: secondaryChannelName, localUid: 2);
+        final secondaryConnection = RtcConnection(
+            channelId: secondaryChannelName, localUid: _randomLocalUid());
         _secondaryConnection = secondaryConnection;
         await engineEx.joinChannelEx(
           token: secondaryToken,
@@ -241,4 +250,6 @@ class AgoraDualChannelController {
     _secondaryStatus = status;
     _secondaryStatusController.add(status);
   }
+
+  int _randomLocalUid() => Random().nextInt(0x7ffffffe) + 1;
 }

@@ -87,20 +87,20 @@ class ListenerSession(models.Model):
 
 
 class ChannelInterpreter(models.Model):
-    """The interpreter currently broadcasting into a channel (see ADR-003).
-
-    `channel` is a OneToOneField, not a ForeignKey: exactly one
-    interpreter may hold a channel at a time. Claiming/releasing is
-    handled in the join/leave views, not here.
-    """
-
-    channel = models.OneToOneField(
-        Channel, on_delete=models.CASCADE, related_name="interpreter_claim"
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="interpreter_claims"
     )
     interpreter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="channel_claims"
     )
     joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "interpreter"], name="unique_interpreter_claim_per_channel"
+            )
+        ]
 
     def __str__(self):
         return f"{self.interpreter} on {self.channel}"

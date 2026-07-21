@@ -10,6 +10,7 @@ import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
+import '../data/mic_presence_socket.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -24,15 +25,39 @@ class BroadcastingScreen extends ConsumerStatefulWidget {
 
 class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   final _controller = AgoraDualChannelController();
+  final _micPresence = MicPresenceSocket();
+  final _liveInterpreterIds = <int>{};
   Object? _connectError;
   Object? _leaveError;
-  bool _muted = false;
+  bool _muted = true;
   bool _leaving = false;
 
   @override
   void initState() {
     super.initState();
     _connect();
+    _connectMicPresence();
+  }
+
+  void _connectMicPresence() {
+    _micPresence.events.listen((event) {
+      final myId = ref.read(authControllerProvider).valueOrNull?.id;
+      if (event.userId == myId) return;
+      setState(() {
+        if (event.live) {
+          _liveInterpreterIds.add(event.userId);
+        } else {
+          _liveInterpreterIds.remove(event.userId);
+        }
+      });
+    });
+    _micPresence.statusRequests.listen((_) {
+      if (!_muted) _micPresence.sendMicState(true);
+    });
+    _micPresence.connect(
+      channelId: widget.args.joinResult.channel.id,
+      accessToken: ref.read(authSessionProvider).accessToken ?? '',
+    );
   }
 
   Future<void> _connect() async {
@@ -53,18 +78,41 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   Future<void> _toggleMute() async {
     final next = !_muted;
     await _controller.setMicMuted(next);
+    _micPresence.sendMicState(!next);
     if (mounted) setState(() => _muted = next);
   }
 
-  /// Single tap target for BigMicButton - retries the connection if it
-  /// failed, otherwise toggles mute. The button itself doesn't know which
-  /// of those makes sense; only the screen holding the controller does.
-  void _handleMicTap() {
+  Future<void> _handleMicTap() async {
     if (_controller.primaryStatus == AgoraConnectionStatus.failed) {
       _connect();
-    } else {
-      _toggleMute();
+      return;
     }
+    if (_muted && _liveInterpreterIds.isNotEmpty) {
+      final proceed = await _confirmBroadcastOverMic();
+      if (proceed != true) return;
+    }
+    _toggleMute();
+  }
+
+  Future<bool?> _confirmBroadcastOverMic() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Another interpreter is live'),
+        content: const Text(
+            'Someone else is already broadcasting on this channel. Listeners will hear you both at once if you turn your mic on.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('TURN ON ANYWAY'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _leave() async {
@@ -88,6 +136,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _micPresence.dispose();
     super.dispose();
   }
 

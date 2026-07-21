@@ -268,19 +268,6 @@ class SessionJoinView(APIView):
 
 
 class ChannelJoinView(APIView):
-    """Authenticated (Interpreter role): code -> claim channel + publisher token.
-
-    Claim semantics (see ADR-003): free -> claim it; already yours ->
-    refresh (reconnect case); someone else's -> CHANNEL_ALREADY_STAFFED.
-
-    Also returns a `source` relay: a listener-role token for the
-    session's source channel, so one claim gives the interpreter
-    everything needed both to hear the Guide (source) and broadcast
-    their interpretation (their own channel) at the same time. `source`
-    is null if the claimed channel *is* the source channel itself - an
-    interpreter can't relay a channel to itself.
-    """
-
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -306,15 +293,9 @@ class ChannelJoinView(APIView):
             )
 
         with transaction.atomic():
-            claim, created = ChannelInterpreter.objects.select_for_update().get_or_create(
-                channel=channel, defaults={"interpreter": request.user}
+            ChannelInterpreter.objects.select_for_update().get_or_create(
+                channel=channel, interpreter=request.user
             )
-            if not created and claim.interpreter_id != request.user.id:
-                raise KabinAPIException(
-                    code="CHANNEL_ALREADY_STAFFED",
-                    message="Another interpreter is already broadcasting on this channel.",
-                    status_code=409,
-                )
 
         token = build_interpreter_token(channel.agora_channel_name)
         return Response(

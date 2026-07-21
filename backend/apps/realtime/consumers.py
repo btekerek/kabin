@@ -86,3 +86,78 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             ).exists()
 
         return False
+
+
+class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
+    """Relays "my mic is on/off" between interpreters sharing a channel
+    (see ADR-008) - purely a relay, no state kept server-side. A client
+    that just connected sends `status_request`; whoever's currently live
+    replies with `mic_state` again so the newcomer catches up.
+    Disconnecting always broadcasts `live: false` for that user, so a
+    closed/crashed client can't leave a stale "live" flag on everyone
+    else.
+    """
+
+    async def connect(self):
+        self.channel_id = self.scope["url_route"]["kwargs"]["channel_id"]
+        self.group_name = f"channel-{self.channel_id}-mic"
+
+        user = await self._authorize()
+        if user is None:
+            await self.close(code=4403)
+            return
+        self.user = user
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if hasattr(self, "user"):
+            await self.channel_layer.group_send(
+                self.group_name,
+                {"type": "mic_state", "user_id": self.user.id, "live": False},
+            )
+
+    async def receive_json(self, content, **kwargs):
+        message_type = content.get("type")
+        if message_type == "mic_state":
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    "type": "mic_state",
+                    "user_id": self.user.id,
+                    "live": bool(content.get("live")),
+                },
+            )
+        elif message_type == "status_request":
+            await self.channel_layer.group_send(
+                self.group_name,
+                {"type": "status_request", "user_id": self.user.id},
+            )
+
+    async def mic_state(self, event):
+        await self.send_json(
+            {"type": "mic_state", "user_id": event["user_id"], "live": event["live"]}
+        )
+
+    async def status_request(self, event):
+        await self.send_json({"type": "status_request", "user_id": event["user_id"]})
+
+    @database_sync_to_async
+    def _authorize(self):
+        query_params = parse_qs(self.scope["query_string"].decode())
+        token = query_params.get("token", [None])[0]
+        if not token:
+            return None
+        try:
+            access = AccessToken(token)
+            user = User.objects.get(pk=access["user_id"])
+        except (TokenError, User.DoesNotExist, KeyError):
+            return None
+        if not ChannelInterpreter.objects.filter(
+            channel_id=self.channel_id, interpreter=user
+        ).exists():
+            return None
+        return user

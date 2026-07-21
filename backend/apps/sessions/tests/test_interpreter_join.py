@@ -108,7 +108,7 @@ def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, sess
     )
 
 
-def test_different_interpreter_rejected_while_channel_staffed(
+def test_second_interpreter_can_also_claim_a_staffed_channel(
     interpreter, other_interpreter, session_with_channels
 ):
     code = session_with_channels["channels"][1]["interpreter_code"]
@@ -120,8 +120,13 @@ def test_different_interpreter_rejected_while_channel_staffed(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
 
-    assert response.status_code == status.HTTP_409_CONFLICT
-    assert response.data["code"] == "CHANNEL_ALREADY_STAFFED"
+    assert response.status_code == status.HTTP_200_OK
+    assert (
+        ChannelInterpreter.objects.filter(
+            channel_id=session_with_channels["channels"][1]["id"]
+        ).count()
+        == 2
+    )
 
 
 def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
