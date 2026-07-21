@@ -73,6 +73,7 @@ class SessionListCreateView(generics.ListCreateAPIView):
             session = Session.objects.create(
                 owner=request.user,
                 name=data["name"],
+                description=data["description"],
                 source_language=data["source_language"],
                 listener_code=generate_listener_code(),
             )

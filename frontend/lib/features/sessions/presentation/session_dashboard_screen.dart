@@ -182,6 +182,11 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(session.name, style: Theme.of(context).textTheme.headlineSmall),
+          if (session.description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(session.description,
+                style: Theme.of(context).textTheme.bodyMedium),
+          ],
           const SizedBox(height: 16),
           _SessionCard(
             sourceLanguage: session.sourceLanguage,

@@ -28,11 +28,13 @@ class SessionRepository {
 
   Future<Session> createSession({
     required String name,
+    String description = '',
     required String sourceLanguage,
     required List<String> targetLanguages,
   }) async {
     final response = await _dio.post('/api/sessions/', data: {
       'name': name,
+      'description': description,
       'source_language': sourceLanguage,
       'target_languages': targetLanguages,
     });

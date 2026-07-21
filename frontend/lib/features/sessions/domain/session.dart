@@ -23,6 +23,7 @@ class Session {
   const Session({
     required this.id,
     required this.name,
+    required this.description,
     required this.sourceLanguage,
     required this.listenerCode,
     required this.status,
@@ -32,6 +33,7 @@ class Session {
 
   final int id;
   final String name;
+  final String description;
   final String sourceLanguage;
   final String listenerCode;
   final SessionStatus status;
@@ -50,6 +52,7 @@ class Session {
   factory Session.fromJson(Map<String, dynamic> json) => Session(
         id: json['id'] as int,
         name: json['name'] as String,
+        description: json['description'] as String? ?? '',
         sourceLanguage: json['source_language'] as String,
         listenerCode: json['listener_code'] as String,
         status: sessionStatusFromJson(json['status'] as String),

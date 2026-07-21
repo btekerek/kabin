@@ -39,6 +39,7 @@ class SessionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "description",
             "source_language",
             "listener_code",
             "status",
@@ -104,6 +105,9 @@ class MessageCreateSerializer(serializers.Serializer):
 
 class SessionCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
+    description = serializers.CharField(
+        max_length=2000, required=False, allow_blank=True, default=""
+    )
     source_language = serializers.CharField(max_length=10)
     target_languages = serializers.ListField(
         child=serializers.CharField(max_length=10), allow_empty=False

@@ -90,6 +90,7 @@ class FakeSessionRepository extends SessionRepository {
   @override
   Future<Session> createSession({
     required String name,
+    String description = '',
     required String sourceLanguage,
     required List<String> targetLanguages,
   }) async {
