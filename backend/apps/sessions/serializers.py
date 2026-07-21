@@ -82,9 +82,21 @@ class InterpreterCodeSerializer(serializers.Serializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    # Null for listener senders (see Message docstring - they have no
+    # account, hence no username to show).
+    sender_name = serializers.CharField(source="sender.username", read_only=True, default=None)
+
     class Meta:
         model = Message
-        fields = ["id", "sender_kind", "sender", "sender_listener_uuid", "body", "created_at"]
+        fields = [
+            "id",
+            "sender_kind",
+            "sender",
+            "sender_name",
+            "sender_listener_uuid",
+            "body",
+            "created_at",
+        ]
         read_only_fields = fields
 
 

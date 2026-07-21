@@ -73,6 +73,7 @@ def test_guide_can_send_and_list_messages(guide, session_with_channels):
     )
     assert send.status_code == status.HTTP_201_CREATED
     assert send.data["sender_kind"] == "guide"
+    assert send.data["sender_name"] == "guide"
 
     history = client.get(f"/api/sessions/{session_with_channels['id']}/messages/")
     assert history.status_code == status.HTTP_200_OK
@@ -131,6 +132,7 @@ def test_listener_with_membership_can_send_and_list(session_with_channels):
     assert send.status_code == status.HTTP_201_CREATED
     assert send.data["sender_kind"] == "listener"
     assert send.data["sender_listener_uuid"] == listener_uuid
+    assert send.data["sender_name"] is None
 
     history = APIClient().get(
         f"/api/sessions/{session_with_channels['id']}/messages/",
