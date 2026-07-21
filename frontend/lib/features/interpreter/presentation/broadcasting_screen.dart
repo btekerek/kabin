@@ -32,6 +32,9 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   bool _muted = true;
   bool _leaving = false;
 
+  bool get _canBroadcast =>
+      widget.args.joinResult.channel.sessionStatus == 'active';
+
   @override
   void initState() {
     super.initState();
@@ -175,7 +178,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                   stream: _controller.primaryStatusStream,
                   initialData: _controller.primaryStatus,
                   builder: (context, snapshot) =>
-                      Text(_statusLabel(snapshot.data)),
+                      Text(_primaryStatusLabel(snapshot.data)),
                 ),
                 const SizedBox(height: 8),
                 if (hasSource)
@@ -187,7 +190,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                       return Column(
                         children: [
                           Text(
-                            'Original audio: ${_statusLabel(status)}',
+                            'Original audio: ${_sourceAudioLabel(status)}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (status == AgoraConnectionStatus.failed)
@@ -235,6 +238,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                     status: snapshot.data ?? AgoraConnectionStatus.disconnected,
                     muted: _muted,
                     onTap: _leaving ? () {} : _handleMicTap,
+                    enabled: _canBroadcast,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -250,17 +254,31 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     );
   }
 
-  String _statusLabel(AgoraConnectionStatus? status) {
+  String _primaryStatusLabel(AgoraConnectionStatus? status) {
     switch (status) {
       case AgoraConnectionStatus.connecting:
         return 'Connecting...';
       case AgoraConnectionStatus.connected:
-        return 'Broadcasting';
+        return _muted ? 'Connected' : 'Broadcasting';
       case AgoraConnectionStatus.failed:
         return 'Connection failed';
       case AgoraConnectionStatus.disconnected:
       case null:
         return 'Disconnected';
+    }
+  }
+
+  String _sourceAudioLabel(AgoraConnectionStatus? status) {
+    final language = widget.args.joinResult.sourceLanguage ?? 'original';
+    switch (status) {
+      case AgoraConnectionStatus.connecting:
+        return '$language (connecting...)';
+      case AgoraConnectionStatus.failed:
+        return '$language (connection failed)';
+      case AgoraConnectionStatus.connected:
+      case AgoraConnectionStatus.disconnected:
+      case null:
+        return language;
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../domain/interpreter_join_result.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -36,18 +37,20 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
       _busy = true;
       _error = null;
     });
+    InterpreterJoinResult? joinResult;
     try {
-      final result = await ref.read(interpreterRepositoryProvider).join(code);
-      if (!mounted) return;
-      context.push(
-        '/broadcast',
-        extra: BroadcastingArgs(joinResult: result, interpreterCode: code),
-      );
+      joinResult = await ref.read(interpreterRepositoryProvider).join(code);
     } catch (error) {
-      setState(() => _error = error);
+      if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    if (joinResult == null || !mounted) return;
+
+    context.push(
+      '/broadcast',
+      extra: BroadcastingArgs(joinResult: joinResult, interpreterCode: code),
+    );
   }
 
   @override
@@ -60,10 +63,9 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextField(

@@ -16,6 +16,10 @@ from apps.sessions.models import Channel, Message, Session
 
 
 class ChannelSerializer(serializers.ModelSerializer):
+    # Lets the client gate the mic control (only active sessions can be
+    # broadcast into) without a second request.
+    session_status = serializers.CharField(source="session.status", read_only=True)
+
     class Meta:
         model = Channel
         # `session` (the owning session's id) is included so
@@ -23,7 +27,7 @@ class ChannelSerializer(serializers.ModelSerializer):
         # reach session-scoped endpoints (e.g. chat) - it never learns
         # the session id any other way, since interpreters only ever
         # identify themselves by channel code (see ADR-003).
-        fields = ["id", "session", "language", "interpreter_code", "is_source"]
+        fields = ["id", "session", "session_status", "language", "interpreter_code", "is_source"]
         read_only_fields = fields
 
 

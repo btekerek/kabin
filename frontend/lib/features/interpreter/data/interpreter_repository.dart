@@ -19,10 +19,12 @@ class InterpreterRepository {
     });
     final data = response.data as Map<String, dynamic>;
     final source = data['source'] as Map<String, dynamic>?;
+    final sourceChannel = source?['channel'] as Map<String, dynamic>?;
     return InterpreterJoinResult(
       joinResult: AgoraJoinResult.fromJson(data),
       channel: Channel.fromJson(data['channel'] as Map<String, dynamic>),
       source: source == null ? null : AgoraJoinResult.fromJson(source),
+      sourceLanguage: sourceChannel?['language'] as String?,
     );
   }
 

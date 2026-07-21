@@ -17,9 +17,11 @@ class InterpreterJoinResult {
     required this.joinResult,
     required this.channel,
     required this.source,
+    required this.sourceLanguage,
   });
 
   final AgoraJoinResult joinResult;
   final Channel channel;
   final AgoraJoinResult? source;
+  final String? sourceLanguage;
 }
