@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../data/listener_status_socket.dart';
 import 'listening_args.dart';
 
 /// Owns one AgoraChannelController for the lifetime of this screen -
@@ -22,12 +23,23 @@ class ListeningScreen extends StatefulWidget {
 
 class _ListeningScreenState extends State<ListeningScreen> {
   final _controller = AgoraChannelController();
+  final _statusSocket = ListenerStatusSocket();
   Object? _connectError;
+  String? _sessionStatus;
+
+  bool get _sessionEnded => _sessionStatus == 'ended';
 
   @override
   void initState() {
     super.initState();
     _connect();
+    _statusSocket.statusUpdates.listen((status) {
+      if (mounted) setState(() => _sessionStatus = status);
+    });
+    _statusSocket.connect(
+      channelId: widget.args.channelId,
+      listenerUuid: widget.args.listenerUuid,
+    );
   }
 
   Future<void> _connect() async {
@@ -51,6 +63,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _statusSocket.dispose();
     super.dispose();
   }
 
@@ -66,6 +79,10 @@ class _ListeningScreenState extends State<ListeningScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_sessionEnded) ...[
+                  const _EndedBanner(),
+                  const SizedBox(height: 24),
+                ],
                 Text(
                   widget.args.channelLanguage,
                   style: Theme.of(context).textTheme.headlineMedium,
@@ -97,6 +114,7 @@ class _ListeningScreenState extends State<ListeningScreen> {
   }
 
   String _statusLabel(AgoraConnectionStatus? status) {
+    if (_sessionEnded) return 'Session ended';
     switch (status) {
       case AgoraConnectionStatus.connecting:
         return 'Connecting...';
@@ -108,5 +126,27 @@ class _ListeningScreenState extends State<ListeningScreen> {
       case null:
         return 'Disconnected';
     }
+  }
+}
+
+class _EndedBanner extends StatelessWidget {
+  const _EndedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'This session has ended.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: scheme.onErrorContainer),
+      ),
+    );
   }
 }

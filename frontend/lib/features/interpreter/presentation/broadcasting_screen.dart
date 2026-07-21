@@ -61,9 +61,13 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     });
     // Pushed instantly by _SessionTransitionView.after_transition when
     // the guide starts/stops/ends the session - lets the mic gate
-    // unlock without a reconnect if the interpreter joined early.
+    // unlock without a reconnect if the interpreter joined early. Ending
+    // also force-mutes a still-live mic - _canBroadcast alone only stops
+    // a *future* unmute, it doesn't touch one already in progress.
     _micPresence.sessionStatusUpdates.listen((status) {
-      if (mounted) setState(() => _sessionStatus = status);
+      if (!mounted) return;
+      setState(() => _sessionStatus = status);
+      if (status == 'ended' && !_muted) _toggleMute();
     });
     _micPresence.connect(
       channelId: widget.args.joinResult.channel.id,
@@ -176,6 +180,10 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_sessionStatus == 'ended') ...[
+                  const _EndedBanner(),
+                  const SizedBox(height: 16),
+                ],
                 StreamBuilder<AgoraConnectionStatus>(
                   stream: _controller.primaryStatusStream,
                   initialData: _controller.primaryStatus,
@@ -282,5 +290,27 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
       case null:
         return language;
     }
+  }
+}
+
+class _EndedBanner extends StatelessWidget {
+  const _EndedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'This session has ended.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: scheme.onErrorContainer),
+      ),
+    );
   }
 }
