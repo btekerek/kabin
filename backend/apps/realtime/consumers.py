@@ -1,16 +1,13 @@
 """
 Django Channels consumers.
 
-ChatConsumer is the first real one (see ADR-005) - push-only from the
-client's perspective. It never accepts a "send message" action; REST
-(apps.sessions.views.MessageListCreateView) is the only write path and
-pushes to this consumer's group after creating each Message. Every
-consumer added here must authorize on connect the same way REST does
-for the equivalent action - see ChatConsumer._authorize for the pattern
-other real-time features (mic indicators, etc.) should follow.
+ChatConsumers are push-only from the client's perspective. They never
+accept a "send message" action; REST (apps.sessions.views) is the only
+write path and pushes to a consumer's group after creating each
+Message. Every consumer added here must authorize on connect the same
+way REST does for the equivalent action.
 """
 
-import uuid as uuid_lib
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -19,16 +16,27 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
-from apps.sessions.models import ChannelInterpreter, ListenerSession, Session
+from apps.sessions.models import ChannelInterpreter, Session
 
 
-class ChatConsumer(AsyncJsonWebsocketConsumer):
-    """Relays chat messages for one session to every connected client.
+def _user_from_token(token):
+    """Resolves the query-string `?token=` credential shared by every
+    consumer below - auth travels in the URL, not a header, since
+    neither browsers nor Flutter can attach custom headers to a
+    WebSocket handshake (see ADR-005).
+    """
+    if not token:
+        return None
+    try:
+        access = AccessToken(token)
+        return User.objects.get(pk=access["user_id"])
+    except (TokenError, User.DoesNotExist, KeyError):
+        return None
 
-    Auth travels in the connection URL's query string, not a header -
-    see ADR-005 for why (browsers/Flutter can't attach custom headers to
-    a WS handshake) and the tradeoff that implies. `?token=<access
-    token>` for guide/interpreter, `?listener_uuid=<uuid>` for listeners.
+
+class SessionChatConsumer(AsyncJsonWebsocketConsumer):
+    """Relays "general" chat messages (guide + every interpreter in the
+    session) to every connected client.
     """
 
     async def connect(self):
@@ -47,7 +55,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def chat_message(self, event):
-        """Handles a "chat.message" group_send from MessageListCreateView."""
         await self.send_json(event["message"])
 
     @database_sync_to_async
@@ -58,34 +65,49 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return False
 
         query_params = parse_qs(self.scope["query_string"].decode())
-        token = query_params.get("token", [None])[0]
-        raw_listener_uuid = query_params.get("listener_uuid", [None])[0]
+        user = _user_from_token(query_params.get("token", [None])[0])
+        if user is None:
+            return False
+        if session.owner_id == user.id:
+            return True
+        return ChannelInterpreter.objects.filter(
+            channel__session=session, interpreter=user
+        ).exists()
 
-        if token:
-            try:
-                access = AccessToken(token)
-                user = User.objects.get(pk=access["user_id"])
-            except (TokenError, User.DoesNotExist, KeyError):
-                return False
-            # Guide-ness is ownership, interpreter-ness is a channel
-            # claim - neither is an account role. Mirrors
-            # IsSessionParticipant on the REST side.
-            if session.owner_id == user.id:
-                return True
-            return ChannelInterpreter.objects.filter(
-                channel__session=session, interpreter=user
-            ).exists()
 
-        if raw_listener_uuid:
-            try:
-                listener_uuid = uuid_lib.UUID(raw_listener_uuid)
-            except ValueError:
-                return False
-            return ListenerSession.objects.filter(
-                session=session, listener_uuid=listener_uuid
-            ).exists()
+class ChannelChatConsumer(AsyncJsonWebsocketConsumer):
+    """Relays per-channel chat messages to only the interpreter(s)
+    holding a claim on that channel - not the guide, not interpreters on
+    other channels (see Message model).
+    """
 
-        return False
+    async def connect(self):
+        self.channel_id = self.scope["url_route"]["kwargs"]["channel_id"]
+        self.group_name = f"channel-{self.channel_id}-chat"
+
+        if not await self._authorize():
+            await self.close(code=4403)
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def chat_message(self, event):
+        await self.send_json(event["message"])
+
+    @database_sync_to_async
+    def _authorize(self):
+        query_params = parse_qs(self.scope["query_string"].decode())
+        user = _user_from_token(query_params.get("token", [None])[0])
+        if user is None:
+            return False
+        return ChannelInterpreter.objects.filter(
+            channel_id=self.channel_id, interpreter=user
+        ).exists()
 
 
 class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
@@ -155,13 +177,8 @@ class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def _authorize(self):
         query_params = parse_qs(self.scope["query_string"].decode())
-        token = query_params.get("token", [None])[0]
-        if not token:
-            return None
-        try:
-            access = AccessToken(token)
-            user = User.objects.get(pk=access["user_id"])
-        except (TokenError, User.DoesNotExist, KeyError):
+        user = _user_from_token(query_params.get("token", [None])[0])
+        if user is None:
             return None
         if not ChannelInterpreter.objects.filter(
             channel_id=self.channel_id, interpreter=user

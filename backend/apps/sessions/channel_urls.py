@@ -7,9 +7,10 @@ session id the interpreter may not even know.
 
 from django.urls import path
 
-from apps.sessions.views import ChannelJoinView, ChannelLeaveView
+from apps.sessions.views import ChannelJoinView, ChannelLeaveView, ChannelMessageListCreateView
 
 urlpatterns = [
     path("join/", ChannelJoinView.as_view(), name="channel-join"),
     path("leave/", ChannelLeaveView.as_view(), name="channel-leave"),
+    path("<int:pk>/messages/", ChannelMessageListCreateView.as_view(), name="channel-messages"),
 ]

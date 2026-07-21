@@ -82,32 +82,16 @@ class InterpreterCodeSerializer(serializers.Serializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    # Null for listener senders (see Message docstring - they have no
-    # account, hence no username to show).
     sender_name = serializers.CharField(source="sender.username", read_only=True, default=None)
 
     class Meta:
         model = Message
-        fields = [
-            "id",
-            "sender_kind",
-            "sender",
-            "sender_name",
-            "sender_listener_uuid",
-            "body",
-            "created_at",
-        ]
+        fields = ["id", "channel", "sender_kind", "sender", "sender_name", "body", "created_at"]
         read_only_fields = fields
 
 
 class MessageCreateSerializer(serializers.Serializer):
-    """listener_uuid is only required for anonymous (listener) senders -
-    IsSessionParticipant has already checked it by the time this parses,
-    so this just needs to accept it, not re-derive the sender's identity.
-    """
-
     body = serializers.CharField(max_length=2000, allow_blank=False)
-    listener_uuid = serializers.UUIDField(required=False)
 
 
 class SessionCreateSerializer(serializers.Serializer):

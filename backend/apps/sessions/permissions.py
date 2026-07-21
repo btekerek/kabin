@@ -10,11 +10,9 @@ IsAuthenticated - ChannelJoinView's own claim logic in views.py handles
 the "already someone else's" conflict).
 """
 
-import uuid as uuid_lib
-
 from rest_framework.permissions import BasePermission
 
-from apps.sessions.models import ChannelInterpreter, ListenerSession
+from apps.sessions.models import ChannelInterpreter
 
 
 class IsSessionOwner(BasePermission):
@@ -24,35 +22,33 @@ class IsSessionOwner(BasePermission):
         return obj.owner_id == request.user.id
 
 
-class IsSessionParticipant(BasePermission):
-    """Object-level: true if the caller is actually part of this session.
-
-    Covers all three sender kinds from ADR-005 with one check: the
-    owning user (guide, by virtue of ownership), a user currently
-    holding a claim on one of the session's channels (interpreter, by
-    virtue of the claim), or a listener with a ListenerSession row. For
-    listeners there's no auth token to check, so their identity comes
-    from `listener_uuid` in the request body (POST) or query params
-    (GET) instead - same anonymous-identity model as the rest of the
-    listener-facing endpoints.
+class IsSessionStaff(BasePermission):
+    """Object-level: true if the caller is the session's owning guide or
+    holds an interpreter claim on any of its channels. Listeners are
+    never session staff - they have no chat access at all (see
+    Message model).
     """
 
     def has_object_permission(self, request, view, session):
         user = request.user
-        if user and user.is_authenticated:
-            if session.owner_id == user.id:
-                return True
-            return ChannelInterpreter.objects.filter(
-                channel__session=session, interpreter=user
-            ).exists()
+        if not (user and user.is_authenticated):
+            return False
+        if session.owner_id == user.id:
+            return True
+        return ChannelInterpreter.objects.filter(
+            channel__session=session, interpreter=user
+        ).exists()
 
-        raw_listener_uuid = request.data.get("listener_uuid") or request.query_params.get(
-            "listener_uuid"
-        )
-        if not raw_listener_uuid:
+
+class IsChannelInterpreter(BasePermission):
+    """Object-level: true if the caller holds an interpreter claim on
+    this specific channel. Used to scope per-channel chat to only the
+    interpreter(s) sharing that channel - not the guide, not
+    interpreters on other channels.
+    """
+
+    def has_object_permission(self, request, view, channel):
+        user = request.user
+        if not (user and user.is_authenticated):
             return False
-        try:
-            listener_uuid = uuid_lib.UUID(str(raw_listener_uuid))
-        except (ValueError, AttributeError, TypeError):
-            return False
-        return ListenerSession.objects.filter(session=session, listener_uuid=listener_uuid).exists()
+        return ChannelInterpreter.objects.filter(channel=channel, interpreter=user).exists()

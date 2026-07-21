@@ -37,7 +37,7 @@ from apps.sessions.models import (
     Message,
     Session,
 )
-from apps.sessions.permissions import IsSessionOwner, IsSessionParticipant
+from apps.sessions.permissions import IsChannelInterpreter, IsSessionOwner, IsSessionStaff
 from apps.sessions.serializers import (
     ChannelSerializer,
     InterpreterCodeSerializer,
@@ -366,64 +366,39 @@ class SessionEndView(_SessionTransitionView):
     target_status = Session.Status.ENDED
 
 
-class MessageListCreateView(APIView):
-    """Chat: anyone actually in the session (see IsSessionParticipant) can
-    read history and send. REST is the only write path - sending a
-    message here also pushes it to the "session-<id>-chat" channel-layer
-    group so connected WebSocket clients receive it immediately. See
-    ADR-005 for why the socket itself never accepts client-sent messages.
-
-    permission_classes is AllowAny, not [IsSessionParticipant], and the
-    participant check is called directly below instead of through
-    check_object_permissions. Reason: DRF's permission_denied() turns a
-    failed object permission into 401 (not 403) whenever no authenticator
-    succeeded - which is every anonymous listener request, since none of
-    them present a JWT. Every other listener-facing endpoint in this app
-    sidesteps that DRF quirk by using AllowAny + an explicit
-    KabinAPIException; this one reuses the same IsSessionParticipant
-    logic as a plain function call so the 403 stays a real 403.
+class _BaseMessageView(APIView):
+    """Shared history pagination for both chat scopes below - see
+    MessageListCreateView (general) and ChannelMessageListCreateView
+    (per-channel).
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     DEFAULT_PAGE_SIZE = 50
     MAX_PAGE_SIZE = 200
 
-    def _get_session(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-        if not IsSessionParticipant().has_object_permission(request, self, session):
-            raise KabinAPIException(
-                code="NOT_A_PARTICIPANT",
-                message="You are not part of this session.",
-                status_code=403,
-            )
-        return session
-
-    def get(self, request, pk):
+    def _paginated(self, request, queryset):
         """Returns the most recent `limit` messages (default/max: 50/200),
-        chronological ascending same as before pagination existed. Pass
-        `before_id` (a message id already seen) to page further back in
-        time - the response is the `limit` messages immediately before
-        that one, still chronological ascending.
+        chronological ascending. Pass `before_id` (a message id already
+        seen) to page further back in time - the response is the `limit`
+        messages immediately before that one, still chronological
+        ascending.
 
         Without `before_id` this is "the tail of the conversation," not
         an offset - so it stays correct even if new messages arrive
         between page requests, unlike a page-number scheme would.
         """
-        session = self._get_session(request, pk)
         limit = self._parse_limit(request.query_params.get("limit"))
-
-        queryset = Message.objects.filter(session=session).order_by("-created_at", "-id")
 
         before_id = request.query_params.get("before_id")
         if before_id is not None:
-            cursor = get_object_or_404(Message, pk=before_id, session=session)
+            cursor = get_object_or_404(queryset, pk=before_id)
             queryset = queryset.filter(
                 Q(created_at__lt=cursor.created_at)
                 | Q(created_at=cursor.created_at, id__lt=cursor.id)
             )
 
-        page = list(queryset[:limit])
+        page = list(queryset.order_by("-created_at", "-id")[:limit])
         page.reverse()
         return Response(MessageSerializer(page, many=True).data)
 
@@ -434,8 +409,30 @@ class MessageListCreateView(APIView):
             return self.DEFAULT_PAGE_SIZE
         return max(1, min(limit, self.MAX_PAGE_SIZE))
 
+
+class MessageListCreateView(_BaseMessageView):
+    """General chat: guide + every interpreter in the session (see
+    IsSessionStaff) - listeners never have chat access. REST is the only
+    write path - sending a message here also pushes it to the
+    "session-<id>-chat" channel-layer group so connected WebSocket
+    clients receive it immediately.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsSessionStaff]
+
+    def _get_session(self, pk):
+        session = get_object_or_404(Session, pk=pk)
+        self.check_object_permissions(self.request, session)
+        return session
+
+    def get(self, request, pk):
+        session = self._get_session(pk)
+        return self._paginated(
+            request, Message.objects.filter(session=session, channel__isnull=True)
+        )
+
     def post(self, request, pk):
-        session = self._get_session(request, pk)
+        session = self._get_session(pk)
 
         if session.status == Session.Status.ENDED:
             raise KabinAPIException(
@@ -446,34 +443,70 @@ class MessageListCreateView(APIView):
 
         input_serializer = MessageCreateSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
-        body = input_serializer.validated_data["body"]
 
-        user = request.user
-        if user and user.is_authenticated:
-            # Guide-ness is ownership, not an account role - see
-            # permissions.py module docstring. A user who reaches here
-            # authenticated but isn't the owner must hold an interpreter
-            # claim instead, since _get_session already enforced
-            # IsSessionParticipant above.
-            sender_kind = (
-                Message.SenderKind.GUIDE
-                if session.owner_id == user.id
-                else Message.SenderKind.INTERPRETER
-            )
-            message = Message.objects.create(
-                session=session, sender_kind=sender_kind, sender=user, body=body
-            )
-        else:
-            message = Message.objects.create(
-                session=session,
-                sender_kind=Message.SenderKind.LISTENER,
-                sender_listener_uuid=input_serializer.validated_data["listener_uuid"],
-                body=body,
-            )
+        sender_kind = (
+            Message.SenderKind.GUIDE
+            if session.owner_id == request.user.id
+            else Message.SenderKind.INTERPRETER
+        )
+        message = Message.objects.create(
+            session=session,
+            sender_kind=sender_kind,
+            sender=request.user,
+            body=input_serializer.validated_data["body"],
+        )
 
         payload = MessageSerializer(message).data
         async_to_sync(get_channel_layer().group_send)(
             f"session-{session.id}-chat",
+            {"type": "chat.message", "message": payload},
+        )
+
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class ChannelMessageListCreateView(_BaseMessageView):
+    """Per-channel chat: only the interpreter(s) holding a claim on this
+    channel (see IsChannelInterpreter) - not the guide, not interpreters
+    on other channels. Lets interpreters sharing a channel coordinate
+    privately alongside the session-wide general chat.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def _get_channel(self, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(self.request, channel)
+        return channel
+
+    def get(self, request, pk):
+        channel = self._get_channel(pk)
+        return self._paginated(request, Message.objects.filter(channel=channel))
+
+    def post(self, request, pk):
+        channel = self._get_channel(pk)
+
+        if channel.session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended.",
+                status_code=400,
+            )
+
+        input_serializer = MessageCreateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        message = Message.objects.create(
+            session=channel.session,
+            channel=channel,
+            sender_kind=Message.SenderKind.INTERPRETER,
+            sender=request.user,
+            body=input_serializer.validated_data["body"],
+        )
+
+        payload = MessageSerializer(message).data
+        async_to_sync(get_channel_layer().group_send)(
+            f"channel-{channel.id}-chat",
             {"type": "chat.message", "message": payload},
         )
 
