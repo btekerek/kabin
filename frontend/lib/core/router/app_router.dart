@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/profile_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
 import '../../features/chat/presentation/chat_args.dart';
@@ -31,12 +32,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loggingIn = state.matchedLocation == '/login' ||
           state.matchedLocation == '/register';
       final onSplash = state.matchedLocation == '/splash';
-      // /chat is shared by everyone in a session (see IsSessionParticipant
-      // on the backend) - a Listener reaches it with no account at all
-      // (see ADR-002), so it has to bypass the auth gate below the same
-      // way /join and /listen do. That bypass is harmless for a logged
-      // in user too: it just means the redirect check is skipped for
-      // this one location, not that anything is blocked.
       final bypassesAuthGate = state.matchedLocation == '/join' ||
           state.matchedLocation == '/listen' ||
           state.matchedLocation == '/chat';
@@ -64,6 +59,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/register',
           builder: (context, state) => const RegisterScreen()),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+          path: '/profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(
           path: '/join',
           builder: (context, state) => const ListenerJoinScreen()),

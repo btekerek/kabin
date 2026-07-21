@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
 import 'listening_args.dart';
 
 /// Owns one AgoraChannelController for the lifetime of this screen -
@@ -56,35 +57,39 @@ class _ListeningScreenState extends State<ListeningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.args.sessionName)),
+      appBar: AppBar(title: KabinAppBarTitle(widget.args.sessionName)),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.args.channelLanguage,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 16),
-              StreamBuilder<AgoraConnectionStatus>(
-                stream: _controller.statusStream,
-                initialData: _controller.status,
-                builder: (context, snapshot) =>
-                    Text(_statusLabel(snapshot.data)),
-              ),
-              if (_connectError != null) ...[
-                const SizedBox(height: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  'Could not connect. Check your connection and try again.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  textAlign: TextAlign.center,
+                  widget.args.channelLanguage,
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
+                const SizedBox(height: 16),
+                StreamBuilder<AgoraConnectionStatus>(
+                  stream: _controller.statusStream,
+                  initialData: _controller.status,
+                  builder: (context, snapshot) =>
+                      Text(_statusLabel(snapshot.data)),
+                ),
+                if (_connectError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Could not connect. Check your connection and try again.',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                OutlinedButton(onPressed: _leave, child: const Text('LEAVE')),
               ],
-              const SizedBox(height: 24),
-              OutlinedButton(onPressed: _leave, child: const Text('Leave')),
-            ],
+            ),
           ),
         ),
       ),

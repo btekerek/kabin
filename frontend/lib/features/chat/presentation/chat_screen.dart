@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/api_error_message.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/profile_menu.dart';
+import '../../auth/state/auth_providers.dart';
 import '../data/chat_socket.dart';
 import '../domain/message.dart';
 import '../state/chat_controller.dart';
@@ -88,6 +91,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _controller.send(body: body, listenerUuid: widget.args.listenerUuid));
   }
 
+  /// Whether [message] was sent by the person looking at this screen -
+  /// drives which side of the thread it renders on. Listeners are
+  /// identified by [ChatArgs.listenerUuid] (no account); Guide/Interpreter
+  /// by the authenticated user's id, since either can be viewing this
+  /// same shared screen (see class doc).
+  bool _isMine(ChatMessage message) {
+    final listenerUuid = widget.args.listenerUuid;
+    if (listenerUuid != null) {
+      return message.senderListenerUuid == listenerUuid;
+    }
+    final currentUserId = ref.read(authControllerProvider).valueOrNull?.id;
+    return currentUserId != null && message.senderId == currentUserId;
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -101,61 +118,91 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final leadingCount = _loadingOlder ? 1 : 0;
     final itemCount = leadingCount + _messages.length + _pending.length;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.args.title)),
+      appBar: AppBar(
+        title: KabinAppBarTitle(widget.args.title),
+        // Listeners have no account (see ADR-002) - the menu only makes
+        // sense for the Guide/Interpreter side of this shared screen.
+        actions: widget.args.listenerUuid == null
+            ? const [ProfileMenu(), SizedBox(width: 4)]
+            : null,
+      ),
       body: Column(
         children: [
           if (_status != ChatConnectionStatus.connected)
             _StatusBanner(status: _status),
           Expanded(
             child: itemCount == 0
-                ? const Center(child: Text('No messages yet'))
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: itemCount,
-                    itemBuilder: (context, index) {
-                      if (_loadingOlder && index == 0) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Center(
-                            child: SizedBox(
-                              height: 16,
-                              width: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
-                      }
-                      final adjusted = index - leadingCount;
-                      if (adjusted < _messages.length) {
-                        return _MessageTile(message: _messages[adjusted]);
-                      }
-                      final pending = _pending[adjusted - _messages.length];
-                      return _PendingTile(
-                        pending: pending,
-                        onRetry: () => _controller.retry(pending),
-                        onDismiss: () => _controller.dismiss(pending),
-                      );
-                    },
+                ? Center(
+                    child: Text(
+                      'No messages yet',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.outline),
+                    ),
+                  )
+                : Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: itemCount,
+                        itemBuilder: (context, index) {
+                          if (_loadingOlder && index == 0) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(
+                                child: SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          }
+                          final adjusted = index - leadingCount;
+                          if (adjusted < _messages.length) {
+                            final message = _messages[adjusted];
+                            return _MessageTile(
+                              message: message,
+                              isMine: _isMine(message),
+                            );
+                          }
+                          final pending = _pending[adjusted - _messages.length];
+                          return _PendingTile(
+                            pending: pending,
+                            onRetry: () => _controller.retry(pending),
+                            onDismiss: () => _controller.dismiss(pending),
+                          );
+                        },
+                      ),
+                    ),
                   ),
           ),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _bodyController,
-                      decoration: const InputDecoration(hintText: 'Message'),
-                      onSubmitted: (_) => _send(),
-                    ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _bodyController,
+                          decoration:
+                              const InputDecoration(hintText: 'Message'),
+                          onSubmitted: (_) => _send(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        icon: const Icon(Icons.send),
+                        onPressed: _send,
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: _send,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -188,21 +235,68 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
+/// Chat-app convention: your own messages sit right-aligned in the
+/// accent color, everyone else's sit left-aligned in a neutral tint with
+/// a sender label above - makes it possible to scan a fast-moving thread
+/// without reading every label.
 class _MessageTile extends StatelessWidget {
-  const _MessageTile({required this.message});
+  const _MessageTile({required this.message, required this.isMine});
 
   final ChatMessage message;
+  final bool isMine;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment:
+            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          Text(_senderLabel(message.senderKind),
-              style: Theme.of(context).textTheme.labelSmall),
-          Text(message.body),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+            child: Column(
+              crossAxisAlignment:
+                  isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!isMine) ...[
+                  Text(_senderLabel(message.senderKind),
+                      style: Theme.of(context).textTheme.labelSmall),
+                  const SizedBox(height: 2),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isMine
+                        ? scheme.primary
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMine ? 16 : 4),
+                      bottomRight: Radius.circular(isMine ? 4 : 16),
+                    ),
+                  ),
+                  child: Text(
+                    message.body,
+                    style: TextStyle(
+                        color: isMine ? scheme.onPrimary : scheme.onSurface),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _timeLabel(message.createdAt),
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: scheme.outline),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -211,19 +305,28 @@ class _MessageTile extends StatelessWidget {
   String _senderLabel(SenderKind kind) {
     switch (kind) {
       case SenderKind.guide:
-        return 'Guide';
+        return 'GUIDE';
       case SenderKind.interpreter:
-        return 'Interpreter';
+        return 'INTERPRETER';
       case SenderKind.listener:
-        return 'Listener';
+        return 'LISTENER';
     }
+  }
+
+  String _timeLabel(DateTime createdAt) {
+    final local = createdAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }
 
 /// A message this screen just tried to send - shown immediately, before
-/// (or instead of) server confirmation. While sending it looks like a
-/// normal message with no failure UI; if the send failed, it shows the
-/// error plus retry/dismiss so the user never has to retype it.
+/// (or instead of) server confirmation. Always rendered on "my" side
+/// since only the sender ever sees their own pending state. While
+/// sending it looks like a normal message with no failure UI; if the
+/// send failed, it shows the error plus retry/dismiss so the user never
+/// has to retype it.
 class _PendingTile extends StatelessWidget {
   const _PendingTile({
     required this.pending,
@@ -237,34 +340,66 @@ class _PendingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final error = pending.error;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text('You', style: Theme.of(context).textTheme.labelSmall),
-          Text(pending.body),
-          if (error == null)
-            Text(
-              'Sending...',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(fontStyle: FontStyle.italic),
-            )
-          else ...[
-            Text(
-              'Failed to send: ${apiErrorMessage(error)}',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            Row(
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                TextButton(onPressed: onRetry, child: const Text('Retry')),
-                TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: error != null
+                        ? scheme.errorContainer
+                        : scheme.primary.withValues(alpha: 0.6),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(4),
+                    ),
+                  ),
+                  child: Text(
+                    pending.body,
+                    style: TextStyle(
+                        color: error != null
+                            ? scheme.onErrorContainer
+                            : scheme.onPrimary),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (error == null)
+                  Text(
+                    'Sending...',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.outline, fontStyle: FontStyle.italic),
+                  )
+                else ...[
+                  Text(
+                    'Failed to send: ${apiErrorMessage(error)}',
+                    style: TextStyle(color: scheme.error, fontSize: 12),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                          onPressed: onRetry, child: const Text('RETRY')),
+                      TextButton(
+                          onPressed: onDismiss, child: const Text('DISMISS')),
+                    ],
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
         ],
       ),
     );

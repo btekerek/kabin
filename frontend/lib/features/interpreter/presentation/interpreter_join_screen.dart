@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
-import '../../auth/state/auth_providers.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/profile_menu.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
@@ -53,48 +54,46 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Join as interpreter'),
-        // Convenience action matching SessionListScreen's - lets the
-        // user log out without backing out to HomeScreen first.
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-          ),
-        ],
+        title: const KabinAppBarTitle('Join as interpreter'),
+        actions: const [ProfileMenu(), SizedBox(width: 4)],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _codeController,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
-              decoration: const InputDecoration(labelText: 'Channel code'),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _codeController,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  decoration: const InputDecoration(labelText: 'Channel code'),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    apiErrorMessage(_error!),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _busy ? null : _join,
+                  child: _busy
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('JOIN CHANNEL'),
+                ),
+              ],
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                apiErrorMessage(_error!),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _busy ? null : _join,
-              child: _busy
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Join channel'),
-            ),
-          ],
+          ),
         ),
       ),
     );
