@@ -177,7 +177,7 @@ def test_leave_does_not_release_someone_elses_claim(
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
 
 
-def test_claiming_a_target_channel_includes_source_relay(interpreter, session_with_channels):
+def test_claiming_a_target_channel_defaults_relay_to_source(interpreter, session_with_channels):
     # channels[0] is the source (en); channels[1] is the target (tr) - see
     # session_with_channels fixture, which mirrors SessionListCreateView's
     # creation order.
@@ -189,15 +189,15 @@ def test_claiming_a_target_channel_includes_source_relay(interpreter, session_wi
     )
 
     assert response.status_code == status.HTTP_200_OK
-    source = response.data["source"]
-    assert source is not None
-    assert source["agora_channel_name"] == f"kabin-ch-{source_channel['id']}"
-    assert source["agora_token"]
-    assert source["channel"]["id"] == source_channel["id"]
-    assert source["channel"]["is_source"] is True
+    relay = response.data["relay"]
+    assert relay is not None
+    assert relay["agora_channel_name"] == f"kabin-ch-{source_channel['id']}"
+    assert relay["agora_token"]
+    assert relay["channel"]["id"] == source_channel["id"]
+    assert relay["channel"]["is_source"] is True
     # ListenerChannelSerializer shape - no interpreter_code leaked to a
     # channel that isn't this interpreter's own.
-    assert "interpreter_code" not in source["channel"]
+    assert "interpreter_code" not in relay["channel"]
 
 
 def test_source_channel_has_no_interpreter_code_to_claim_with(interpreter, session_with_channels):

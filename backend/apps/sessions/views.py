@@ -278,6 +278,54 @@ class SessionJoinView(APIView):
         )
 
 
+def _relay_payload(relay_channel):
+    return {
+        "agora_app_id": settings.AGORA_APP_ID,
+        "agora_channel_name": relay_channel.agora_channel_name,
+        "agora_token": build_listener_token(relay_channel.agora_channel_name),
+        "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+        "channel": ListenerChannelSerializer(relay_channel).data,
+    }
+
+
+def _default_relay(channel):
+    if channel.is_source:
+        return None
+    source_channel = Channel.objects.get(session=channel.session, is_source=True)
+    return _relay_payload(source_channel)
+
+
+def _available_relay_channels(channel):
+    if channel.is_source:
+        return []
+    others = Channel.objects.filter(session=channel.session).exclude(pk=channel.pk)
+    return ListenerChannelSerializer(others, many=True).data
+
+
+def _available_target_channels(session):
+    targets = Channel.objects.filter(session=session, is_source=False)
+    return ListenerChannelSerializer(targets, many=True).data
+
+
+def _claim_payload(channel):
+    """Shared response shape for ChannelJoinView and ChannelSwitchView -
+    publish credentials for [channel] plus everything the interpreter's
+    two dropdowns (target language, relay/source language) need to
+    render themselves.
+    """
+    token = build_interpreter_token(channel.agora_channel_name)
+    return {
+        "agora_app_id": settings.AGORA_APP_ID,
+        "agora_channel_name": channel.agora_channel_name,
+        "agora_token": token,
+        "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+        "channel": ChannelSerializer(channel).data,
+        "relay": _default_relay(channel),
+        "available_relay_channels": _available_relay_channels(channel),
+        "available_target_channels": _available_target_channels(channel.session),
+    }
+
+
 class ChannelJoinView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -308,29 +356,78 @@ class ChannelJoinView(APIView):
                 channel=channel, interpreter=request.user
             )
 
-        token = build_interpreter_token(channel.agora_channel_name)
-        return Response(
-            {
-                "agora_app_id": settings.AGORA_APP_ID,
-                "agora_channel_name": channel.agora_channel_name,
-                "agora_token": token,
-                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
-                "channel": ChannelSerializer(channel).data,
-                "source": self._source_relay(channel),
-            }
-        )
+        return Response(_claim_payload(channel))
 
-    def _source_relay(self, channel):
-        if channel.is_source:
-            return None
-        source_channel = Channel.objects.get(session=channel.session, is_source=True)
-        return {
-            "agora_app_id": settings.AGORA_APP_ID,
-            "agora_channel_name": source_channel.agora_channel_name,
-            "agora_token": build_listener_token(source_channel.agora_channel_name),
-            "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
-            "channel": ListenerChannelSerializer(source_channel).data,
-        }
+
+class ChannelRelayView(APIView):
+    """Lets an interpreter switch which channel they're relaying from
+    (listening to while they interpret) at any time - not just the
+    session's original source. Supports pivot setups where one
+    interpreter relays from another channel's translation instead of
+    the original audio.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def post(self, request, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(request, channel)
+
+        relay_channel = get_object_or_404(
+            Channel, pk=request.data.get("relay_channel_id"), session=channel.session
+        )
+        if relay_channel.id == channel.id:
+            raise KabinAPIException(
+                code="INVALID_RELAY_CHANNEL",
+                message="Can't relay from your own channel.",
+                status_code=400,
+            )
+
+        return Response(_relay_payload(relay_channel))
+
+
+class ChannelSwitchView(APIView):
+    """Lets an interpreter move their own claim to a different (target,
+    non-source) channel in the same session, without leaving/rejoining
+    by code - e.g. picking a different language to translate into.
+    Multiple interpreters may already share one channel (see
+    ChannelInterpreter), so this never has to resolve a staffing
+    conflict - it's just "drop my claim here, pick it up there."
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def post(self, request, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(request, channel)
+
+        if channel.session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended.",
+                status_code=400,
+            )
+
+        target_channel = get_object_or_404(
+            Channel,
+            pk=request.data.get("target_channel_id"),
+            session=channel.session,
+            is_source=False,
+        )
+        if target_channel.id == channel.id:
+            raise KabinAPIException(
+                code="INVALID_TARGET_CHANNEL",
+                message="Already on that channel.",
+                status_code=400,
+            )
+
+        with transaction.atomic():
+            ChannelInterpreter.objects.filter(channel=channel, interpreter=request.user).delete()
+            ChannelInterpreter.objects.select_for_update().get_or_create(
+                channel=target_channel, interpreter=request.user
+            )
+
+        return Response(_claim_payload(target_channel))
 
 
 class ChannelLeaveView(APIView):
