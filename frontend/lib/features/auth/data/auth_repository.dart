@@ -14,20 +14,24 @@ class AuthRepository {
   Future<User> register({
     required String email,
     required String password,
+    required String username,
   }) async {
     final response = await _dio.post('/api/auth/register/', data: {
       'email': email,
       'password': password,
+      'username': username,
     });
     return User.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// [identifier] is either the account's email or username - see
+  /// LoginSerializer, which accepts either interchangeably.
   Future<TokenPair> login({
-    required String email,
+    required String identifier,
     required String password,
   }) async {
     final response = await _dio.post('/api/auth/login/', data: {
-      'email': email,
+      'identifier': identifier,
       'password': password,
     });
     final data = response.data as Map<String, dynamic>;
@@ -41,6 +45,13 @@ class AuthRepository {
 
   Future<User> me() async {
     final response = await _dio.get('/api/auth/me/');
+    return User.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<User> updateUsername(String username) async {
+    final response = await _dio.patch('/api/auth/me/', data: {
+      'username': username,
+    });
     return User.fromJson(response.data as Map<String, dynamic>);
   }
 }

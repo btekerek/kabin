@@ -49,7 +49,7 @@ class FakeAuthRepository extends AuthRepository {
 
   @override
   Future<TokenPair> login(
-      {required String email, required String password}) async {
+      {required String identifier, required String password}) async {
     if (loginError != null) throw loginError!;
     return loginTokens!;
   }
@@ -58,6 +58,7 @@ class FakeAuthRepository extends AuthRepository {
   Future<User> register({
     required String email,
     required String password,
+    required String username,
   }) async {
     registerCalled = true;
     return userToReturn!;

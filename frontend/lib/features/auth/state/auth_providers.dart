@@ -67,11 +67,13 @@ class AuthController extends AsyncNotifier<User?> {
     }
   }
 
-  Future<void> login({required String email, required String password}) async {
+  /// [identifier] is either the account's email or username.
+  Future<void> login(
+      {required String identifier, required String password}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final tokens = await ref.read(authRepositoryProvider).login(
-            email: email,
+            identifier: identifier,
             password: password,
           );
       ref.read(authSessionProvider).updateTokens(tokens);
@@ -85,15 +87,31 @@ class AuthController extends AsyncNotifier<User?> {
   Future<void> register({
     required String email,
     required String password,
+    required String username,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repository = ref.read(authRepositoryProvider);
-      await repository.register(email: email, password: password);
-      final tokens = await repository.login(email: email, password: password);
+      await repository.register(
+        email: email,
+        password: password,
+        username: username,
+      );
+      final tokens =
+          await repository.login(identifier: email, password: password);
       ref.read(authSessionProvider).updateTokens(tokens);
       return repository.me();
     });
+  }
+
+  /// Throws on failure (e.g. USERNAME_IN_USE) rather than going through
+  /// AsyncValue.guard like login/register - the caller (ProfileScreen)
+  /// shows that error locally, and the shared auth state shouldn't flip
+  /// to AsyncError over a rejected edit while already logged in.
+  Future<void> updateUsername(String username) async {
+    final updated =
+        await ref.read(authRepositoryProvider).updateUsername(username);
+    state = AsyncData(updated);
   }
 
   Future<void> logout() async {

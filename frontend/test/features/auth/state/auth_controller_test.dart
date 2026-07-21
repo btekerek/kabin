@@ -40,13 +40,14 @@ void main() {
     await container
         .read(authControllerProvider.future); // settle bootstrap (logged out)
 
-    const testUser = User(id: 1, email: 'guide@example.com');
+    const testUser =
+        User(id: 1, email: 'guide@example.com', username: 'guide_person');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');
 
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'password123!',
         );
 
@@ -66,7 +67,7 @@ void main() {
     );
 
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'wrong',
         );
 
@@ -79,12 +80,13 @@ void main() {
       () async {
     await container.read(authControllerProvider.future);
 
-    const testUser = User(id: 1, email: 'guide@example.com');
+    const testUser =
+        User(id: 1, email: 'guide@example.com', username: 'guide_person');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'password123!',
         );
 
