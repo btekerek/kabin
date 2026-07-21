@@ -10,6 +10,7 @@ import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
+import '../../chat/presentation/chat_fab.dart';
 import '../data/mic_presence_socket.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
@@ -159,19 +160,14 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
         title: KabinAppBarTitle(widget.args.joinResult.channel.language),
         actions: const [ProfileMenu(), SizedBox(width: 4)],
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Chat',
-        onPressed: () => context.push(
-          '/chat',
-          extra: ChatArgs(
-            sessionId: widget.args.joinResult.channel.sessionId,
-            socketQueryParams: {
-              'token': ref.read(authSessionProvider).accessToken ?? '',
-            },
-            title: 'Chat',
-          ),
+      floatingActionButton: ChatFab(
+        args: ChatArgs(
+          sessionId: widget.args.joinResult.channel.sessionId,
+          socketQueryParams: {
+            'token': ref.read(authSessionProvider).accessToken ?? '',
+          },
+          title: 'Chat',
         ),
-        child: const Icon(Icons.chat_bubble_outline),
       ),
       body: Center(
         child: ConstrainedBox(
