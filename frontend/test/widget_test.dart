@@ -27,6 +27,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Log in'), findsWidgets);
+    expect(find.text('LOG IN'), findsWidgets);
   });
 }
