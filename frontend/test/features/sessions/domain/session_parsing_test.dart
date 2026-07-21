@@ -17,7 +17,7 @@ void main() {
             'id': 1,
             'session': 7,
             'language': 'EN',
-            'interpreter_code': 'EN482913',
+            'interpreter_code': null,
             'is_source': true
           },
           {
@@ -35,6 +35,8 @@ void main() {
       expect(session.status, SessionStatus.notStarted);
       expect(session.channels, hasLength(2));
       expect(session.channels.first.isSource, isTrue);
+      expect(session.channels.first.interpreterCode, isNull);
+      expect(session.channels.last.interpreterCode, 'TR117733');
     });
 
     test('canStart/canStop/canEnd match the backend state machine', () {

@@ -79,7 +79,6 @@ class SessionListCreateView(generics.ListCreateAPIView):
             Channel.objects.create(
                 session=session,
                 language=data["source_language"],
-                interpreter_code=generate_interpreter_code(data["source_language"]),
                 is_source=True,
             )
             for language in data["target_languages"]:

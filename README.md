@@ -1,6 +1,6 @@
 # Kabin
 
-Real-time event interpretation platform — a mobile-first app that puts the
+Real-time event interpretation platform, a mobile-first app that puts the
 interpretation booth of a conference into everyone's pocket. A session has
 one source language (the stage) and one or more target language channels.
 Three roles: Guide (session owner), Interpreter (joins a channel), and

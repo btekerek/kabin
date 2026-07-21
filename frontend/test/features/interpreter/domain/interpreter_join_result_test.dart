@@ -25,6 +25,7 @@ void main() {
       final result = InterpreterJoinResult(
         joinResult: AgoraJoinResult.fromJson(data),
         channel: Channel.fromJson(data['channel'] as Map<String, dynamic>),
+        source: null,
       );
 
       expect(result.joinResult.agoraChannelName, 'chan-abc');
@@ -32,6 +33,37 @@ void main() {
       expect(result.channel.language, 'TR');
       expect(result.channel.interpreterCode, 'TR117733');
       expect(result.channel.isSource, isFalse);
+      expect(result.source, isNull);
+    });
+
+    test('carries a source relay when the claimed channel is not the source',
+        () {
+      final sourceData = {
+        'agora_app_id': 'app-123',
+        'agora_channel_name': 'chan-source',
+        'agora_token': 'token-source',
+        'expires_in': 3600,
+      };
+
+      final result = InterpreterJoinResult(
+        joinResult: const AgoraJoinResult(
+          agoraAppId: 'app-123',
+          agoraChannelName: 'chan-abc',
+          agoraToken: 'token-xyz',
+          expiresIn: 3600,
+        ),
+        channel: const Channel(
+          id: 2,
+          sessionId: 7,
+          language: 'TR',
+          interpreterCode: 'TR117733',
+          isSource: false,
+        ),
+        source: AgoraJoinResult.fromJson(sourceData),
+      );
+
+      expect(result.source, isNotNull);
+      expect(result.source!.agoraChannelName, 'chan-source');
     });
   });
 }

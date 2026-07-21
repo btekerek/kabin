@@ -3,17 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
+import '../../../core/agora/agora_dual_channel_controller.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
-/// Owns one AgoraChannelController for the lifetime of this screen, same
-/// lifecycle reasoning as ListeningScreen. Unlike the Listener flow,
-/// leaving here also has to release the channel claim server-side
-/// (ChannelLeaveView) so another interpreter can pick it up - that's why
-/// this is a ConsumerStatefulWidget rather than plain StatefulWidget.
 class BroadcastingScreen extends ConsumerStatefulWidget {
   const BroadcastingScreen({super.key, required this.args});
 
@@ -24,7 +20,7 @@ class BroadcastingScreen extends ConsumerStatefulWidget {
 }
 
 class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
-  final _controller = AgoraChannelController();
+  final _controller = AgoraDualChannelController();
   Object? _connectError;
   Object? _leaveError;
   bool _muted = false;
@@ -37,12 +33,14 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   }
 
   Future<void> _connect() async {
+    final source = widget.args.joinResult.source;
     try {
       await _controller.join(
         appId: widget.args.joinResult.joinResult.agoraAppId,
-        channelName: widget.args.joinResult.joinResult.agoraChannelName,
-        token: widget.args.joinResult.joinResult.agoraToken,
-        asBroadcaster: true,
+        primaryChannelName: widget.args.joinResult.joinResult.agoraChannelName,
+        primaryToken: widget.args.joinResult.joinResult.agoraToken,
+        secondaryChannelName: source?.agoraChannelName,
+        secondaryToken: source?.agoraToken,
       );
     } catch (error) {
       if (mounted) setState(() => _connectError = error);
@@ -55,12 +53,6 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     if (mounted) setState(() => _muted = next);
   }
 
-  /// Releasing the claim (ChannelLeaveView) is not best-effort: if it
-  /// fails, another interpreter can't pick up this channel, so the
-  /// failure is surfaced and the user can retry rather than the screen
-  /// silently popping as if the release had succeeded. _controller.leave()
-  /// is idempotent (a no-op once the engine is already released), so
-  /// retrying after a partial failure is safe.
   Future<void> _leave() async {
     setState(() {
       _leaving = true;
@@ -87,6 +79,8 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasSource = widget.args.joinResult.source != null;
+
     return Scaffold(
       appBar: AppBar(title: Text(widget.args.joinResult.channel.language)),
       body: Center(
@@ -96,11 +90,43 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               StreamBuilder<AgoraConnectionStatus>(
-                stream: _controller.statusStream,
-                initialData: _controller.status,
+                stream: _controller.primaryStatusStream,
+                initialData: _controller.primaryStatus,
                 builder: (context, snapshot) =>
                     Text(_statusLabel(snapshot.data)),
               ),
+              const SizedBox(height: 8),
+              if (hasSource)
+                StreamBuilder<AgoraConnectionStatus>(
+                  stream: _controller.secondaryStatusStream,
+                  initialData: _controller.secondaryStatus,
+                  builder: (context, snapshot) {
+                    final status = snapshot.data;
+                    return Column(
+                      children: [
+                        Text(
+                          'Original audio: ${_statusLabel(status)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        if (status == AgoraConnectionStatus.failed)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Text(
+                              'Could not hear the original audio. Check your connection and try again.',
+                              style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                )
+              else
+                Text(
+                  'This is the original audio channel.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               if (_connectError != null) ...[
                 const SizedBox(height: 16),
                 Text(

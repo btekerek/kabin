@@ -61,9 +61,15 @@ def test_guide_can_create_session_with_channels(guide):
     source_channels = [c for c in channels if c["is_source"]]
     assert len(source_channels) == 1
     assert source_channels[0]["language"] == "EN"
-    assert source_channels[0]["interpreter_code"].startswith("EN")
+    # No interpreter_code for the source channel - nobody joins it with a
+    # code (listeners use the listener PIN, interpreters join a target).
+    assert source_channels[0]["interpreter_code"] is None
 
-    target_languages = sorted(c["language"] for c in channels if not c["is_source"])
+    target_channels = [c for c in channels if not c["is_source"]]
+    for channel in target_channels:
+        assert channel["interpreter_code"].startswith(channel["language"])
+
+    target_languages = sorted(c["language"] for c in target_channels)
     assert target_languages == ["DE", "TR"]
 
 
@@ -168,6 +174,15 @@ def test_stop_returns_active_session_to_not_started(guide):
     response = client.post(f"/api/sessions/{session['id']}/stop/")
     assert response.status_code == status.HTTP_200_OK
     assert response.data["status"] == "not_started"
+
+
+def test_end_can_be_called_on_a_never_started_session(guide):
+    # A session that's never gone live can still be ended/cancelled -
+    # not_started -> ended is an explicitly allowed transition.
+    session = _create_session(guide)
+    response = _authed_client(guide).post(f"/api/sessions/{session['id']}/end/")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["status"] == "ended"
 
 
 def test_ended_session_is_terminal(guide):

@@ -89,7 +89,7 @@ def test_non_owner_guide_cannot_send(other_guide, session_with_channels):
 
 
 def test_interpreter_with_active_claim_can_send(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )

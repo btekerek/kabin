@@ -3,23 +3,19 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// API base URL, injected at build/run time:
-///   flutter run --dart-define=API_BASE_URL=https://api.example.com
-///
-/// Without an override, picks a sane default for local dev per platform:
-/// the Android emulator can't reach the host machine's loopback address
-/// directly, so it needs 10.0.2.2 (the emulator's alias for the host);
-/// every other platform (Windows/macOS/Linux desktop, iOS simulator,
-/// web) can reach the host's own loopback directly, so those use it.
-/// 127.0.0.1 specifically, not "localhost" - on Windows "localhost" can
-/// resolve to the IPv6 loopback (::1) first, and if that hangs instead
-/// of failing fast, every request silently stalls for the OS's full TCP
-/// connect timeout with no server-side trace at all, since the packets
-/// never reach a server bound to the IPv4 address.
+///   flutter run --dart-define=API_BASE_URL=http://192.168.1.x:8000
 class ApiConfig {
   static String get baseUrl {
     const override = String.fromEnvironment('API_BASE_URL');
     if (override.isNotEmpty) return override;
-    if (!kIsWeb && Platform.isAndroid) return 'http://10.0.2.2:8000';
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      throw StateError(
+        'API_BASE_URL is required on Android/iOS - a real device (or '
+        "the emulator) can't reach the dev machine over loopback. Pass "
+        '--dart-define=API_BASE_URL=http://<your-lan-ip>:8000, or set '
+        'it up once via a PowerShell profile alias (see dev notes).',
+      );
+    }
     return 'http://127.0.0.1:8000';
   }
 }

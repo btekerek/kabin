@@ -62,8 +62,10 @@ def test_guide_can_get_broadcast_token_for_own_session(guide, session):
     assert response.data["agora_channel_name"] == f"kabin-ch-{source_channel['id']}"
     assert response.data["agora_token"]
     assert response.data["channel"]["is_source"] is True
-    # Full ChannelSerializer (their own channel) - interpreter_code intact.
-    assert response.data["channel"]["interpreter_code"] == source_channel["interpreter_code"]
+    # Full ChannelSerializer (their own channel), but the source channel
+    # never has an interpreter_code to begin with (see models.py).
+    assert response.data["channel"]["interpreter_code"] is None
+    assert source_channel["interpreter_code"] is None
 
 
 def test_broadcast_token_available_before_session_starts(guide, session):

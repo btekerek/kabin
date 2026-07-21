@@ -57,7 +57,7 @@ def session_with_channels(guide):
 
 
 def test_interpreter_can_claim_channel(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -65,7 +65,7 @@ def test_interpreter_can_claim_channel(interpreter, session_with_channels):
     assert response.status_code == status.HTTP_200_OK
     assert (
         response.data["agora_channel_name"]
-        == f"kabin-ch-{session_with_channels['channels'][0]['id']}"
+        == f"kabin-ch-{session_with_channels['channels'][1]['id']}"
     )
     assert response.data["agora_token"]
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
@@ -75,7 +75,7 @@ def test_session_owner_can_also_claim_a_channel(guide, session_with_channels):
     # There's no fixed account role (see permissions.py) - the same
     # account that owns a session (its guide) can also claim one of its
     # own channels as an interpreter.
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(guide).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -92,7 +92,7 @@ def test_unknown_code_returns_channel_not_found(interpreter):
 
 
 def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     client = _authed_client(interpreter)
 
     first = client.post("/api/channels/join/", {"interpreter_code": code}, format="json")
@@ -102,7 +102,7 @@ def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, sess
     assert second.status_code == status.HTTP_200_OK
     assert (
         ChannelInterpreter.objects.filter(
-            channel_id=session_with_channels["channels"][0]["id"]
+            channel_id=session_with_channels["channels"][1]["id"]
         ).count()
         == 1
     )
@@ -111,7 +111,7 @@ def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, sess
 def test_different_interpreter_rejected_while_channel_staffed(
     interpreter, other_interpreter, session_with_channels
 ):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -129,7 +129,7 @@ def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
     guide_client.post(f"/api/sessions/{session_with_channels['id']}/start/")
     guide_client.post(f"/api/sessions/{session_with_channels['id']}/end/")
 
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -139,7 +139,7 @@ def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
 
 
 def test_leave_releases_claim(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     client = _authed_client(interpreter)
     client.post("/api/channels/join/", {"interpreter_code": code}, format="json")
 
@@ -150,7 +150,7 @@ def test_leave_releases_claim(interpreter, session_with_channels):
 
 
 def test_leave_is_a_no_op_when_not_holding_the_channel(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/leave/", {"interpreter_code": code}, format="json"
     )
@@ -160,7 +160,7 @@ def test_leave_is_a_no_op_when_not_holding_the_channel(interpreter, session_with
 def test_leave_does_not_release_someone_elses_claim(
     interpreter, other_interpreter, session_with_channels
 ):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -195,12 +195,10 @@ def test_claiming_a_target_channel_includes_source_relay(interpreter, session_wi
     assert "interpreter_code" not in source["channel"]
 
 
-def test_claiming_the_source_channel_itself_has_no_source_relay(interpreter, session_with_channels):
-    source_code = session_with_channels["channels"][0]["interpreter_code"]
-
-    response = _authed_client(interpreter).post(
-        "/api/channels/join/", {"interpreter_code": source_code}, format="json"
-    )
-
-    assert response.status_code == status.HTTP_200_OK
-    assert response.data["source"] is None
+def test_source_channel_has_no_interpreter_code_to_claim_with(interpreter, session_with_channels):
+    # There's no scenario where an interpreter relays the source channel
+    # into itself, so the source channel is never issued an
+    # interpreter_code at all (see models.py) - nothing to join with.
+    source_channel = session_with_channels["channels"][0]
+    assert source_channel["is_source"] is True
+    assert source_channel["interpreter_code"] is None
