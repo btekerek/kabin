@@ -76,9 +76,17 @@ class SessionJoinSerializer(serializers.Serializer):
 
 
 class InterpreterCodeSerializer(serializers.Serializer):
-    """Shared input shape for both channel join and leave."""
+    """Shared input shape for both channel join and leave.
+
+    Codes are always generated upper-case (see codes.py), so normalizing
+    input here makes lookups case-insensitive without needing an iexact
+    query - "en123456" and "EN123456" both resolve to the same channel.
+    """
 
     interpreter_code = serializers.CharField(max_length=20)
+
+    def validate_interpreter_code(self, value):
+        return value.strip().upper()
 
 
 class MessageSerializer(serializers.ModelSerializer):
