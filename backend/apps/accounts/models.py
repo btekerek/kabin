@@ -13,12 +13,14 @@ Listeners are NOT Django users (they're anonymous, identified by a
 client-generated UUID persisted in shared_preferences) so they don't live
 here - see apps.sessions.models.SessionListener instead.
 
-Login identifies a user by email (see EmailTokenObtainPairSerializer),
-not the inherited `username` field. We keep `username` (from AbstractUser)
-internally - auto-generated at registration, never shown to the user -
-rather than doing a destructive swap to AbstractBaseUser, since Django
-still needs *some* USERNAME_FIELD-independent unique field for admin/
-internal use. `email` is the field users and the API actually care about.
+A user picks their own `username` (from AbstractUser) at registration -
+unlike the historical Django convention, it's not the primary login
+identifier by itself. LoginSerializer accepts either `email` or
+`username` interchangeably; `email` additionally has a reserved role for
+account recovery (password reset), which is why it stays mandatory and
+unique alongside username. `username` is also what's shown as the chat
+sender's name instead of a generic "Guide"/"Interpreter" label or the
+user's email (see MessageSerializer.sender_name).
 """
 
 from django.contrib.auth.models import AbstractUser

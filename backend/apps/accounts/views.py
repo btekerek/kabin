@@ -16,11 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.accounts.models import User
-from apps.accounts.serializers import (
-    EmailTokenObtainPairSerializer,
-    RegisterSerializer,
-    UserSerializer,
-)
+from apps.accounts.serializers import LoginSerializer, RegisterSerializer, UserSerializer
 from apps.core.exceptions import KabinAPIException
 
 
@@ -38,7 +34,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
-    serializer_class = EmailTokenObtainPairSerializer
+    serializer_class = LoginSerializer
 
 
 class LogoutView(APIView):
@@ -61,7 +57,12 @@ class LogoutView(APIView):
         return Response(status=status.HTTP_205_RESET_CONTENT)
 
 
-class MeView(generics.RetrieveAPIView):
+class MeView(generics.RetrieveUpdateAPIView):
+    """GET for current-user info; PATCH (username only - id/email are
+    read-only on UserSerializer) lets a user change the username they
+    were assigned or picked at registration.
+    """
+
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
