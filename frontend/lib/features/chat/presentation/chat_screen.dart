@@ -262,7 +262,7 @@ class _MessageTile extends StatelessWidget {
                   isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 if (!isMine) ...[
-                  Text(_senderLabel(message.senderKind),
+                  Text(_senderLabel(message),
                       style: Theme.of(context).textTheme.labelSmall),
                   const SizedBox(height: 2),
                 ],
@@ -302,8 +302,10 @@ class _MessageTile extends StatelessWidget {
     );
   }
 
-  String _senderLabel(SenderKind kind) {
-    switch (kind) {
+  String _senderLabel(ChatMessage message) {
+    final name = message.senderName;
+    if (name != null && name.isNotEmpty) return name;
+    switch (message.senderKind) {
       case SenderKind.guide:
         return 'GUIDE';
       case SenderKind.interpreter:

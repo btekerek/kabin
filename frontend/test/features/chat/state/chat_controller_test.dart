@@ -10,6 +10,7 @@ ChatMessage _message({required int id, String body = 'hi'}) => ChatMessage(
       id: id,
       senderKind: SenderKind.guide,
       senderId: 1,
+      senderName: 'Guide Person',
       senderListenerUuid: null,
       body: body,
       createdAt: DateTime.parse('2026-07-17T12:00:00Z'),

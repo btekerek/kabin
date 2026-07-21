@@ -13,17 +13,15 @@ SenderKind senderKindFromJson(String value) {
   }
 }
 
-/// One chat message (see MessageSerializer). The backend doesn't expose
-/// a sender display name yet - only `sender_kind` plus a raw user id or
-/// listener uuid - so the UI can only label a message "Guide" /
-/// "Interpreter" / "Listener", not by name. Multiple interpreters in one
-/// session will all show under the same generic label until the backend
-/// adds a display name field.
+/// One chat message (see MessageSerializer). `senderName` is the
+/// Guide/Interpreter's registered display name - null for listener
+/// senders, who have no account (see ChatMessage's sender_kind).
 class ChatMessage {
   const ChatMessage({
     required this.id,
     required this.senderKind,
     required this.senderId,
+    required this.senderName,
     required this.senderListenerUuid,
     required this.body,
     required this.createdAt,
@@ -32,6 +30,7 @@ class ChatMessage {
   final int id;
   final SenderKind senderKind;
   final int? senderId;
+  final String? senderName;
   final String? senderListenerUuid;
   final String body;
   final DateTime createdAt;
@@ -40,6 +39,7 @@ class ChatMessage {
         id: json['id'] as int,
         senderKind: senderKindFromJson(json['sender_kind'] as String),
         senderId: json['sender'] as int?,
+        senderName: json['sender_name'] as String?,
         senderListenerUuid: json['sender_listener_uuid'] as String?,
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
