@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../domain/listener_channel.dart';
 import '../domain/listener_session_summary.dart';
 import '../state/listener_providers.dart';
@@ -79,83 +80,101 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Join a session')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: _session == null
-            ? _buildPinEntry()
-            : _buildChannelPicker(_session!),
-      ),
+      appBar: AppBar(title: const KabinAppBarTitle('Join a session')),
+      body: _session == null
+          ? _buildPinEntry()
+          : Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildChannelPicker(_session!),
+            ),
     );
   }
 
   Widget _buildPinEntry() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _pinController,
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineSmall,
-          decoration: const InputDecoration(labelText: 'Listener PIN'),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            apiErrorMessage(_error!),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-            textAlign: TextAlign.center,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _pinController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall,
+                decoration: const InputDecoration(labelText: 'Listener PIN'),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  apiErrorMessage(_error!),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _busy ? null : _lookup,
+                child: _busy
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('FIND SESSION'),
+              ),
+            ],
           ),
-        ],
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _busy ? null : _lookup,
-          child: _busy
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Find session'),
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildChannelPicker(ListenerSessionSummary session) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(session.name, style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        const Text('Pick a language to listen in:'),
-        const SizedBox(height: 16),
-        if (_error != null) ...[
-          Text(
-            apiErrorMessage(_error!),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-          const SizedBox(height: 16),
-        ],
-        Expanded(
-          child: ListView.builder(
-            itemCount: session.channels.length,
-            itemBuilder: (context, index) {
-              final channel = session.channels[index];
-              return ListTile(
-                title: Text(channel.language),
-                subtitle: channel.isSource
-                    ? const Text('Original (stage) audio')
-                    : null,
-                trailing: const Icon(Icons.chevron_right),
-                enabled: !_busy,
-                onTap: () => _joinChannel(channel),
-              );
-            },
-          ),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(session.name,
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 8),
+            Text('Pick a language to listen in:',
+                style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 16),
+            if (_error != null) ...[
+              Text(
+                apiErrorMessage(_error!),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Expanded(
+              child: ListView.separated(
+                itemCount: session.channels.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final channel = session.channels[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(channel.language),
+                      subtitle: channel.isSource
+                          ? const Text('Original (stage) audio')
+                          : null,
+                      trailing: const Icon(Icons.chevron_right),
+                      enabled: !_busy,
+                      onTap: () => _joinChannel(channel),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

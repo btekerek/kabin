@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/errors/api_error_message.dart';
+import '../../../core/widgets/big_mic_button.dart';
+import '../../../core/widgets/content_column.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../domain/channel.dart';
@@ -19,25 +23,41 @@ class SessionDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionAsync = ref.watch(sessionDetailProvider(sessionId));
+    final session = sessionAsync.valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Session')),
+      appBar: AppBar(
+        title: const KabinAppBarTitle('Session'),
+        actions: const [ProfileMenu(), SizedBox(width: 4)],
+      ),
       body: sessionAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(apiErrorMessage(error))),
         data: (session) => _DashboardBody(session: session),
       ),
+      floatingActionButton: session == null
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Chat',
+              onPressed: () => context.push(
+                '/chat',
+                extra: ChatArgs(
+                  sessionId: session.id,
+                  socketQueryParams: {
+                    'token': ref.read(authSessionProvider).accessToken ?? '',
+                  },
+                  title: 'Chat - ${session.name}',
+                ),
+              ),
+              child: const Icon(Icons.chat_bubble_outline),
+            ),
     );
   }
 }
 
-/// A ConsumerStatefulWidget (not just ConsumerWidget) because it owns an
-/// AgoraChannelController for the Guide's own mic - same "one screen,
-/// one connection, disposed on exit" lifecycle as ListeningScreen/
-/// BroadcastingScreen. Flutter reuses this State across rebuilds driven
-/// by sessionDetailProvider (e.g. after start/stop/end refetches the
-/// session), so the live mic connection survives those, and is only
-/// ever torn down when the dashboard itself is left.
+/// Owns the Guide's own AgoraChannelController. Starting the session and
+/// going live are one user action here (the toggle in _SessionCard), not
+/// two - see _startAndGoLive/_stopAndLeaveMic.
 class _DashboardBody extends ConsumerStatefulWidget {
   const _DashboardBody({required this.session});
 
@@ -49,15 +69,27 @@ class _DashboardBody extends ConsumerStatefulWidget {
 
 class _DashboardBodyState extends ConsumerState<_DashboardBody> {
   final _micController = AgoraChannelController();
-  bool _micConnecting = false;
+
+  /// True while the combined start-session+go-live (or stop+leave)
+  /// sequence is running - disables the toggle so it can't be double-hit.
+  bool _togglingSession = false;
+
   bool _muted = false;
   Object? _micError;
 
-  Future<void> _goLive() async {
-    setState(() {
-      _micConnecting = true;
-      _micError = null;
-    });
+  @override
+  void initState() {
+    super.initState();
+    // Reopening the dashboard on an already-active session should try to
+    // rejoin the mic automatically rather than leaving the guide to
+    // notice it's silent and hunt for a button.
+    if (widget.session.status == SessionStatus.active) {
+      _connectMic();
+    }
+  }
+
+  Future<void> _connectMic() async {
+    setState(() => _micError = null);
     try {
       final result = await ref
           .read(sessionRepositoryProvider)
@@ -69,9 +101,53 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
         asBroadcaster: true,
       );
     } catch (error) {
-      setState(() => _micError = error);
+      if (mounted) setState(() => _micError = error);
+    }
+  }
+
+  Future<void> _startAndGoLive() async {
+    setState(() {
+      _togglingSession = true;
+      _micError = null;
+    });
+    try {
+      await ref.read(sessionDetailProvider(widget.session.id).notifier).start();
+      // start() swallows its own errors into AsyncError rather than
+      // throwing (see SessionDetailController._transition) - check the
+      // resulting status before touching the mic, otherwise a rejected
+      // transition would still try to go live.
+      final latest = ref.read(sessionDetailProvider(widget.session.id));
+      if (latest.value?.status != SessionStatus.active) return;
+      await _connectMic();
     } finally {
-      if (mounted) setState(() => _micConnecting = false);
+      if (mounted) setState(() => _togglingSession = false);
+    }
+  }
+
+  Future<void> _stopAndLeaveMic() async {
+    setState(() => _togglingSession = true);
+    try {
+      await _micController.leave();
+      if (mounted) setState(() => _muted = false);
+      await ref.read(sessionDetailProvider(widget.session.id).notifier).stop();
+    } finally {
+      if (mounted) setState(() => _togglingSession = false);
+    }
+  }
+
+  Future<void> _endSession() async {
+    setState(() => _togglingSession = true);
+    try {
+      try {
+        await _micController.leave();
+      } catch (_) {
+        // Ending the session should proceed even if hanging up the mic
+        // failed - there's nothing left to serve it anyway.
+      }
+      if (mounted) setState(() => _muted = false);
+      await ref.read(sessionDetailProvider(widget.session.id).notifier).end();
+    } finally {
+      if (mounted) setState(() => _togglingSession = false);
     }
   }
 
@@ -81,9 +157,15 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
     if (mounted) setState(() => _muted = next);
   }
 
-  Future<void> _stopBroadcasting() async {
-    await _micController.leave();
-    if (mounted) setState(() => _muted = false);
+  /// Single tap target for BigMicButton - retries the mic connection if
+  /// it failed, otherwise toggles mute. Mirrors BroadcastingScreen's
+  /// _handleMicTap.
+  void _handleMicTap() {
+    if (_micController.status == AgoraConnectionStatus.failed) {
+      _connectMic();
+    } else {
+      _toggleMute();
+    }
   }
 
   @override
@@ -95,182 +177,220 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
-    final controller = ref.read(sessionDetailProvider(session.id).notifier);
     final detailState = ref.watch(sessionDetailProvider(session.id));
-    final isTransitioning = detailState.isLoading;
+    final busy = _togglingSession || detailState.isLoading;
+    final targetChannels =
+        session.channels.where((channel) => !channel.isSource).toList();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(session.name, style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 4),
-        Text('Status: ${_statusLabel(session.status)}'),
-        const SizedBox(height: 24),
-        _CodeCard(
-          label: 'Listener PIN',
-          code: session.listenerCode,
-          description: 'Anyone in the room enters this to join as a listener.',
-        ),
-        const SizedBox(height: 24),
-        Text('Your mic', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _MicControl(
-          status: _micController.status,
-          statusStream: _micController.statusStream,
-          connecting: _micConnecting,
-          muted: _muted,
-          sessionActive: session.status == SessionStatus.active,
-          onGoLive: _goLive,
-          onToggleMute: _toggleMute,
-          onStop: _stopBroadcasting,
-        ),
-        if (_micError != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            apiErrorMessage(_micError!),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+    return ContentColumn(
+      maxWidth: 640,
+      padding: EdgeInsets.zero,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(session.name, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 16),
+          _SessionCard(
+            sourceLanguage: session.sourceLanguage,
+            status: session.status,
+            busy: busy,
+            micStatus: _micController.status,
+            micStatusStream: _micController.statusStream,
+            muted: _muted,
+            micError: _micError,
+            onToggle: (goingLive) =>
+                goingLive ? _startAndGoLive() : _stopAndLeaveMic(),
+            onMicTap: _handleMicTap,
           ),
-        ],
-        const SizedBox(height: 24),
-        Text('Channels', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        for (final channel in session.channels) _ChannelTile(channel: channel),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            if (session.canStart)
-              FilledButton(
-                onPressed: isTransitioning ? null : controller.start,
-                child: const Text('Start'),
-              ),
-            if (session.canStop)
-              OutlinedButton(
-                onPressed: isTransitioning ? null : controller.stop,
-                child: const Text('Stop'),
-              ),
-            if (session.canEnd)
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error),
-                onPressed: isTransitioning ? null : controller.end,
-                child: const Text('End session'),
-              ),
-            OutlinedButton(
-              onPressed: () => context.push(
-                '/chat',
-                extra: ChatArgs(
-                  sessionId: session.id,
-                  socketQueryParams: {
-                    'token': ref.read(authSessionProvider).accessToken ?? '',
-                  },
-                  title: 'Chat - ${session.name}',
+          const SizedBox(height: 24),
+          _CodeCard(
+            label: 'LISTENER CODE',
+            code: session.listenerCode,
+            description: 'One code for all languages, share with listeners.',
+          ),
+          if (targetChannels.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              'INTERPRETER CHANNEL CODES',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.outline),
+            ),
+            const SizedBox(height: 8),
+            for (final channel in targetChannels) ...[
+              _ChannelCodeCard(channel: channel),
+              const SizedBox(height: 12),
+            ],
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              if (session.canEnd)
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error),
+                  onPressed: busy ? null : _endSession,
+                  child: const Text('END SESSION'),
                 ),
-              ),
-              child: const Text('Chat'),
+            ],
+          ),
+          if (detailState.hasError) ...[
+            const SizedBox(height: 16),
+            Text(
+              apiErrorMessage(detailState.error as Object),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ],
-        ),
-        if (detailState.hasError) ...[
-          const SizedBox(height: 16),
-          Text(
-            apiErrorMessage(detailState.error as Object),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
         ],
-      ],
+      ),
     );
-  }
-
-  String _statusLabel(SessionStatus status) {
-    switch (status) {
-      case SessionStatus.notStarted:
-        return 'Not started';
-      case SessionStatus.active:
-        return 'Active';
-      case SessionStatus.ended:
-        return 'Ended';
-    }
   }
 }
 
-class _MicControl extends StatelessWidget {
-  const _MicControl({
+/// Source-language status card: session status pill up top, and the one
+/// toggle that both starts/stops the session and takes the guide's mic
+/// live/off with it - this replaces the previous Start/Stop/End +
+/// Go Live/Mute/Stop broadcasting six-button spread.
+class _SessionCard extends StatelessWidget {
+  const _SessionCard({
+    required this.sourceLanguage,
     required this.status,
-    required this.statusStream,
-    required this.connecting,
+    required this.busy,
+    required this.micStatus,
+    required this.micStatusStream,
     required this.muted,
-    required this.sessionActive,
-    required this.onGoLive,
-    required this.onToggleMute,
-    required this.onStop,
+    required this.micError,
+    required this.onToggle,
+    required this.onMicTap,
   });
 
-  final AgoraConnectionStatus status;
-  final Stream<AgoraConnectionStatus> statusStream;
-  final bool connecting;
+  final String sourceLanguage;
+  final SessionStatus status;
+  final bool busy;
+  final AgoraConnectionStatus micStatus;
+  final Stream<AgoraConnectionStatus> micStatusStream;
   final bool muted;
-  final bool sessionActive;
-  final VoidCallback onGoLive;
-  final VoidCallback onToggleMute;
-  final VoidCallback onStop;
+  final Object? micError;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onMicTap;
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AgoraConnectionStatus>(
-      stream: statusStream,
-      initialData: status,
-      builder: (context, snapshot) {
-        final current = snapshot.data ?? AgoraConnectionStatus.disconnected;
-        final isLive = current == AgoraConnectionStatus.connected ||
-            current == AgoraConnectionStatus.connecting;
+    final ended = status == SessionStatus.ended;
 
-        if (!isLive) {
-          if (!sessionActive) {
-            return const SizedBox.shrink();
-          }
-          return FilledButton.icon(
-            onPressed: connecting ? null : onGoLive,
-            icon: const Icon(Icons.mic_outlined),
-            label: const Text('Go live'),
-          );
-        }
-
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_statusLabel(current)),
-            if (current == AgoraConnectionStatus.connected) ...[
-              FilledButton.icon(
-                onPressed: onToggleMute,
-                icon: Icon(muted ? Icons.mic_off : Icons.mic),
-                label: Text(muted ? 'Unmute' : 'Mute'),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Source language',
+                          style: Theme.of(context).textTheme.labelMedium),
+                      Text(sourceLanguage,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                _StatusPill(status: status),
+              ],
+            ),
+            const Divider(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Start / stop session',
+                      style: Theme.of(context).textTheme.titleSmall),
+                ),
+                if (ended)
+                  Text('Ended',
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline))
+                else
+                  Switch(
+                    value: status == SessionStatus.active,
+                    onChanged: busy ? null : onToggle,
+                  ),
+              ],
+            ),
+            if (status == SessionStatus.active) ...[
+              const SizedBox(height: 20),
+              Center(
+                child: StreamBuilder<AgoraConnectionStatus>(
+                  stream: micStatusStream,
+                  initialData: micStatus,
+                  builder: (context, snapshot) => BigMicButton(
+                    status: snapshot.data ?? AgoraConnectionStatus.disconnected,
+                    muted: muted,
+                    onTap: onMicTap,
+                  ),
+                ),
               ),
-              OutlinedButton(
-                onPressed: onStop,
-                child: const Text('Stop broadcasting'),
+            ],
+            if (micError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                apiErrorMessage(micError!),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
           ],
-        );
-      },
+        ),
+      ),
     );
   }
+}
 
-  String _statusLabel(AgoraConnectionStatus status) {
-    switch (status) {
-      case AgoraConnectionStatus.connecting:
-        return 'Connecting...';
-      case AgoraConnectionStatus.connected:
-        return 'Live';
-      case AgoraConnectionStatus.failed:
-        return 'Connection failed';
-      case AgoraConnectionStatus.disconnected:
-        return 'Off';
-    }
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
+
+  final SessionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (background, foreground, label) = switch (status) {
+      SessionStatus.notStarted => (
+          scheme.surfaceContainerHighest,
+          scheme.onSurfaceVariant,
+          'NOT STARTED',
+        ),
+      SessionStatus.active => (
+          scheme.primaryContainer,
+          scheme.onPrimaryContainer,
+          'ACTIVE',
+        ),
+      SessionStatus.ended => (
+          scheme.errorContainer,
+          scheme.onErrorContainer,
+          'ENDED',
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label,
+          style: Theme.of(context)
+              .textTheme
+              .labelMedium
+              ?.copyWith(color: foreground)),
+    );
   }
 }
 
@@ -312,24 +432,20 @@ class _CodeCard extends StatelessWidget {
   }
 }
 
-class _ChannelTile extends StatelessWidget {
-  const _ChannelTile({required this.channel});
+class _ChannelCodeCard extends StatelessWidget {
+  const _ChannelCodeCard({required this.channel});
 
   final Channel channel;
 
   @override
   Widget build(BuildContext context) {
-    final code = channel.interpreterCode;
-    return ListTile(
-      title: Text(channel.language + (channel.isSource ? ' (source)' : '')),
-      subtitle: code != null ? Text('Interpreter code: $code') : null,
-      trailing: code != null
-          ? IconButton(
-              icon: const Icon(Icons.copy),
-              tooltip: 'Copy',
-              onPressed: () => Clipboard.setData(ClipboardData(text: code)),
-            )
-          : null,
+    // Only non-source channels reach this widget (see targetChannels in
+    // _DashboardBodyState.build) - those always carry a code.
+    return _CodeCard(
+      label: '${channel.language} channel code'.toUpperCase(),
+      code: channel.interpreterCode!,
+      description:
+          'Interpreters translating into ${channel.language} join with this code.',
     );
   }
 }

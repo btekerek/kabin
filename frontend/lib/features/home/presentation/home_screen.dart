@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../auth/state/auth_providers.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/profile_menu.dart';
 
 /// Post-login landing screen. There's no fixed account role (see
 /// features/auth/domain/user.dart) - any logged in user can create a
@@ -17,33 +18,32 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kabin'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-          ),
-        ],
+        title: const KabinAppBarTitle('Kabin'),
+        actions: const [ProfileMenu(), SizedBox(width: 4)],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilledButton.icon(
-              onPressed: () => context.push('/sessions'),
-              icon: const Icon(Icons.mic_outlined),
-              label: const Text('Create / manage a session'),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => context.push('/sessions'),
+                  icon: const Icon(Icons.mic_outlined),
+                  label: const Text('CREATE / MANAGE A SESSION'),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/interpret'),
+                  icon: const Icon(Icons.headset_mic_outlined),
+                  label: const Text('JOIN AS INTERPRETER'),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/interpret'),
-              icon: const Icon(Icons.headset_mic_outlined),
-              label: const Text('Join as interpreter'),
-            ),
-          ],
+          ),
         ),
       ),
     );

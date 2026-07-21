@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/agora/agora_dual_channel_controller.dart';
 import '../../../core/errors/api_error_message.dart';
+import '../../../core/widgets/big_mic_button.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../state/interpreter_providers.dart';
@@ -53,6 +56,17 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     if (mounted) setState(() => _muted = next);
   }
 
+  /// Single tap target for BigMicButton - retries the connection if it
+  /// failed, otherwise toggles mute. The button itself doesn't know which
+  /// of those makes sense; only the screen holding the controller does.
+  void _handleMicTap() {
+    if (_controller.primaryStatus == AgoraConnectionStatus.failed) {
+      _connect();
+    } else {
+      _toggleMute();
+    }
+  }
+
   Future<void> _leave() async {
     setState(() {
       _leaving = true;
@@ -82,93 +96,105 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     final hasSource = widget.args.joinResult.source != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.args.joinResult.channel.language)),
+      appBar: AppBar(
+        title: KabinAppBarTitle(widget.args.joinResult.channel.language),
+        actions: const [ProfileMenu(), SizedBox(width: 4)],
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Chat',
+        onPressed: () => context.push(
+          '/chat',
+          extra: ChatArgs(
+            sessionId: widget.args.joinResult.channel.sessionId,
+            socketQueryParams: {
+              'token': ref.read(authSessionProvider).accessToken ?? '',
+            },
+            title: 'Chat',
+          ),
+        ),
+        child: const Icon(Icons.chat_bubble_outline),
+      ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              StreamBuilder<AgoraConnectionStatus>(
-                stream: _controller.primaryStatusStream,
-                initialData: _controller.primaryStatus,
-                builder: (context, snapshot) =>
-                    Text(_statusLabel(snapshot.data)),
-              ),
-              const SizedBox(height: 8),
-              if (hasSource)
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 StreamBuilder<AgoraConnectionStatus>(
-                  stream: _controller.secondaryStatusStream,
-                  initialData: _controller.secondaryStatus,
-                  builder: (context, snapshot) {
-                    final status = snapshot.data;
-                    return Column(
-                      children: [
-                        Text(
-                          'Original audio: ${_statusLabel(status)}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        if (status == AgoraConnectionStatus.failed)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Text(
-                              'Could not hear the original audio. Check your connection and try again.',
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error),
-                              textAlign: TextAlign.center,
-                            ),
+                  stream: _controller.primaryStatusStream,
+                  initialData: _controller.primaryStatus,
+                  builder: (context, snapshot) =>
+                      Text(_statusLabel(snapshot.data)),
+                ),
+                const SizedBox(height: 8),
+                if (hasSource)
+                  StreamBuilder<AgoraConnectionStatus>(
+                    stream: _controller.secondaryStatusStream,
+                    initialData: _controller.secondaryStatus,
+                    builder: (context, snapshot) {
+                      final status = snapshot.data;
+                      return Column(
+                        children: [
+                          Text(
+                            'Original audio: ${_statusLabel(status)}',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
-                      ],
-                    );
-                  },
-                )
-              else
-                Text(
-                  'This is the original audio channel.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              if (_connectError != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Could not connect. Check your connection and try again.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              if (_leaveError != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Could not leave: ${apiErrorMessage(_leaveError!)}',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _leaving ? null : _toggleMute,
-                icon: Icon(_muted ? Icons.mic_off : Icons.mic),
-                label: Text(_muted ? 'Unmute' : 'Mute'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () => context.push(
-                  '/chat',
-                  extra: ChatArgs(
-                    sessionId: widget.args.joinResult.channel.sessionId,
-                    socketQueryParams: {
-                      'token': ref.read(authSessionProvider).accessToken ?? '',
+                          if (status == AgoraConnectionStatus.failed)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Text(
+                                'Could not hear the original audio. Check your connection and try again.',
+                                style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                        ],
+                      );
                     },
-                    title: 'Chat',
+                  )
+                else
+                  Text(
+                    'This is the original audio channel.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                if (_connectError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Could not connect. Check your connection and try again.',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                if (_leaveError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Could not leave: ${apiErrorMessage(_leaveError!)}',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 32),
+                StreamBuilder<AgoraConnectionStatus>(
+                  stream: _controller.primaryStatusStream,
+                  initialData: _controller.primaryStatus,
+                  builder: (context, snapshot) => BigMicButton(
+                    status: snapshot.data ?? AgoraConnectionStatus.disconnected,
+                    muted: _muted,
+                    onTap: _leaving ? () {} : _handleMicTap,
                   ),
                 ),
-                child: const Text('Chat'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _leaving ? null : _leave,
-                child: const Text('Leave'),
-              ),
-            ],
+                const SizedBox(height: 32),
+                OutlinedButton(
+                  onPressed: _leaving ? null : _leave,
+                  child: const Text('LEAVE'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
