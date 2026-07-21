@@ -113,7 +113,7 @@ class AgoraDualChannelController {
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
         publishMicrophoneTrack: true,
-        autoSubscribeAudio: true,
+        autoSubscribeAudio: false,
       ),
     );
     // Joining publishes the mic track immediately - mute right away so

@@ -31,13 +31,14 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   Object? _leaveError;
   bool _muted = true;
   bool _leaving = false;
+  late String _sessionStatus;
 
-  bool get _canBroadcast =>
-      widget.args.joinResult.channel.sessionStatus == 'active';
+  bool get _canBroadcast => _sessionStatus == 'active';
 
   @override
   void initState() {
     super.initState();
+    _sessionStatus = widget.args.joinResult.channel.sessionStatus;
     _connect();
     _connectMicPresence();
   }
@@ -56,6 +57,12 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     });
     _micPresence.statusRequests.listen((_) {
       if (!_muted) _micPresence.sendMicState(true);
+    });
+    // Pushed instantly by _SessionTransitionView.after_transition when
+    // the guide starts/stops/ends the session - lets the mic gate
+    // unlock without a reconnect if the interpreter joined early.
+    _micPresence.sessionStatusUpdates.listen((status) {
+      if (mounted) setState(() => _sessionStatus = status);
     });
     _micPresence.connect(
       channelId: widget.args.joinResult.channel.id,

@@ -145,6 +145,13 @@ class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
     async def status_request(self, event):
         await self.send_json({"type": "status_request", "user_id": event["user_id"]})
 
+    async def session_status(self, event):
+        """Handles a "session_status" group_send from
+        _SessionTransitionView.after_transition - pushed to every
+        channel of the session, not just this one's own group member.
+        """
+        await self.send_json({"type": "session_status", "status": event["status"]})
+
     @database_sync_to_async
     def _authorize(self):
         query_params = parse_qs(self.scope["query_string"].decode())

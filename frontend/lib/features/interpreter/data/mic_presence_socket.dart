@@ -25,6 +25,7 @@ class MicPresenceSocket {
 
   final _eventsController = StreamController<MicStateEvent>.broadcast();
   final _statusRequestsController = StreamController<void>.broadcast();
+  final _sessionStatusController = StreamController<String>.broadcast();
 
   Stream<MicStateEvent> get events => _eventsController.stream;
 
@@ -32,6 +33,10 @@ class MicPresenceSocket {
   /// to catch it up - the screen should respond with its own current
   /// mic state via [sendMicState] if it's currently live.
   Stream<void> get statusRequests => _statusRequestsController.stream;
+
+  /// Fires the instant the guide starts/stops/ends the session - pushed
+  /// by _SessionTransitionView.after_transition, not sent by any client.
+  Stream<String> get sessionStatusUpdates => _sessionStatusController.stream;
 
   void connect({required int channelId, required String accessToken}) {
     final wsBase = ApiConfig.baseUrl.replaceFirst('http', 'ws');
@@ -52,6 +57,8 @@ class MicPresenceSocket {
             ));
           case 'status_request':
             _statusRequestsController.add(null);
+          case 'session_status':
+            _sessionStatusController.add(json['status'] as String);
         }
       },
       onError: (Object error, StackTrace stackTrace) {
@@ -79,5 +86,6 @@ class MicPresenceSocket {
     unawaited(disconnect());
     if (!_eventsController.isClosed) _eventsController.close();
     if (!_statusRequestsController.isClosed) _statusRequestsController.close();
+    if (!_sessionStatusController.isClosed) _sessionStatusController.close();
   }
 }

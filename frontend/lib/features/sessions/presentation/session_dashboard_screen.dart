@@ -74,7 +74,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
   /// sequence is running - disables the toggle so it can't be double-hit.
   bool _togglingSession = false;
 
-  bool _muted = false;
+  bool _muted = true;
   Object? _micError;
 
   @override
@@ -128,7 +128,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
     setState(() => _togglingSession = true);
     try {
       await _micController.leave();
-      if (mounted) setState(() => _muted = false);
+      if (mounted) setState(() => _muted = true);
       await ref.read(sessionDetailProvider(widget.session.id).notifier).stop();
     } finally {
       if (mounted) setState(() => _togglingSession = false);
@@ -144,7 +144,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
         // Ending the session should proceed even if hanging up the mic
         // failed - there's nothing left to serve it anyway.
       }
-      if (mounted) setState(() => _muted = false);
+      if (mounted) setState(() => _muted = true);
       await ref.read(sessionDetailProvider(widget.session.id).notifier).end();
     } finally {
       if (mounted) setState(() => _togglingSession = false);

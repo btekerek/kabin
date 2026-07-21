@@ -80,6 +80,11 @@ class AgoraChannelController {
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
       ),
     );
+    if (asBroadcaster) {
+      // Joining publishes the mic track immediately - mute right away so
+      // the Guide always starts silent and has to opt in to going live.
+      await engine.muteLocalAudioStream(true);
+    }
 
     _startConnectionStatePolling(engine);
   }

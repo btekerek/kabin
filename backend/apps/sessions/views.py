@@ -132,7 +132,18 @@ class _SessionTransitionView(APIView):
         return Response(SessionSerializer(session).data)
 
     def after_transition(self, session):
-        """Hook for subclasses with side effects beyond the status change."""
+        """Pushes the new status to every channel's mic-presence group
+        instantly - interpreters may have joined a channel before the
+        guide started the session, and BroadcastingScreen's mic gate
+        (only broadcast while active) needs to unlock the moment it
+        does, not on the next poll.
+        """
+        channel_layer = get_channel_layer()
+        for channel_id in session.channels.values_list("id", flat=True):
+            async_to_sync(channel_layer.group_send)(
+                f"channel-{channel_id}-mic",
+                {"type": "session_status", "status": session.status},
+            )
 
 
 class SessionBroadcastView(APIView):
