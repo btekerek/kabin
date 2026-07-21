@@ -8,6 +8,7 @@ Message. Every consumer added here must authorize on connect the same
 way REST does for the equivalent action.
 """
 
+import uuid as uuid_lib
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -16,7 +17,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
-from apps.sessions.models import ChannelInterpreter, Session
+from apps.sessions.models import ChannelInterpreter, ListenerSession, Session
 
 
 def _user_from_token(token):
@@ -185,3 +186,52 @@ class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
         ).exists():
             return None
         return user
+
+
+class ListenerStatusConsumer(AsyncJsonWebsocketConsumer):
+    """Read-only for a listener: relays session_status pushes on the
+    channel they're listening to, so their screen can show "this session
+    has ended" instead of audio just going silent with no explanation.
+    Joins the same "channel-<id>-mic" group MicPresenceConsumer already
+    broadcasts session_status to - a listener never sends mic state, so
+    this only forwards the one event type it cares about and no-ops the
+    rest.
+    """
+
+    async def connect(self):
+        self.channel_id = self.scope["url_route"]["kwargs"]["channel_id"]
+        self.group_name = f"channel-{self.channel_id}-mic"
+
+        if not await self._authorize():
+            await self.close(code=4403)
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def mic_state(self, event):
+        pass
+
+    async def status_request(self, event):
+        pass
+
+    async def session_status(self, event):
+        await self.send_json({"type": "session_status", "status": event["status"]})
+
+    @database_sync_to_async
+    def _authorize(self):
+        query_params = parse_qs(self.scope["query_string"].decode())
+        raw_listener_uuid = query_params.get("listener_uuid", [None])[0]
+        if not raw_listener_uuid:
+            return False
+        try:
+            listener_uuid = uuid_lib.UUID(raw_listener_uuid)
+        except ValueError:
+            return False
+        return ListenerSession.objects.filter(
+            channel_id=self.channel_id, listener_uuid=listener_uuid
+        ).exists()
