@@ -104,12 +104,15 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               initialValue: _sourceLanguageCode,
+              isExpanded: true,
               decoration: const InputDecoration(
                   labelText: 'Source language (the stage)'),
               items: [
                 for (final language in languages)
                   DropdownMenuItem(
-                      value: language.code, child: Text(language.name)),
+                    value: language.code,
+                    child: Text(language.name, overflow: TextOverflow.ellipsis),
+                  ),
               ],
               onChanged: (value) => setState(() => _sourceLanguageCode = value),
             ),

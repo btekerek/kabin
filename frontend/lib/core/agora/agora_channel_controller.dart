@@ -1,15 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import 'package:permission_handler/permission_handler.dart';
 
-/// Shared connection lifecycle for both roles that touch live audio -
-/// Interpreter (publishes into a channel) and Listener (subscribes to
-/// one). One controller instance is one channel connection; a screen
-/// creates one on entry and disposes it on exit rather than sharing a
-/// single long-lived engine across screens, since only one channel is
-/// ever joined at a time per role in this app.
+import 'mic_permission.dart';
+
 enum AgoraConnectionStatus { disconnected, connecting, connected, failed }
 
 class AgoraChannelController {
@@ -22,27 +16,18 @@ class AgoraChannelController {
   Stream<AgoraConnectionStatus> get statusStream => _statusController.stream;
   AgoraConnectionStatus get status => _status;
 
-  /// Joins [channelName] using a token issued by the backend (see
-  /// ADR-002/ADR-003 for how listener vs. interpreter tokens differ).
-  /// [asBroadcaster] controls both the Agora client role (publisher vs.
-  /// audience) and whether microphone permission is requested at all -
-  /// a Listener never needs mic access.
   Future<void> join({
     required String appId,
     required String channelName,
     required String token,
     required bool asBroadcaster,
   }) async {
-    // Defensive: if a previous join on this same controller failed
-    // without the caller ever calling leave() (e.g. a "try again" retry
-    // after AgoraConnectionStatus.failed), release that engine first
-    // rather than leaking it under a fresh one.
     if (_engine != null) {
       await leave();
     }
 
     if (asBroadcaster) {
-      await _requestMicrophonePermission();
+      await requestMicrophonePermission();
     }
 
     _setStatus(AgoraConnectionStatus.connecting);
@@ -80,6 +65,9 @@ class AgoraChannelController {
 
     await engine.initialize(RtcEngineContext(appId: appId));
     await engine.enableAudio();
+    if (!asBroadcaster) {
+      await engine.enableLocalAudio(false);
+    }
 
     await engine.joinChannel(
       token: token,
@@ -96,16 +84,6 @@ class AgoraChannelController {
     _startConnectionStatePolling(engine);
   }
 
-  /// Fallback for an observed Windows-plugin gap: the native SDK's own
-  /// log can show a fully successful join (onJoinChannelSuccess firing
-  /// natively, elapsed ~300ms) while neither onJoinChannelSuccess nor
-  /// onConnectionStateChanged ever reaches this Dart event handler,
-  /// leaving the UI stuck on "connecting" forever despite the engine
-  /// actually being connected. RtcEngine.getConnectionState() is ground
-  /// truth queried directly, independent of whether that event bridge
-  /// delivers - so polling it catches a connect the callback missed.
-  /// Also caps the wait: if genuinely still not connected after 20s,
-  /// report failed instead of hanging indefinitely with no feedback.
   void _startConnectionStatePolling(RtcEngine engine) {
     _statusPollTimer?.cancel();
     var elapsed = Duration.zero;
@@ -132,8 +110,8 @@ class AgoraChannelController {
     });
   }
 
-  /// Interpreter-only: mute/unmute the local mic without leaving the
-  /// channel. No-op if this controller was joined as a Listener (there's
+  /// Broadcaster-only: mute/unmute the local mic without leaving the
+  /// channel. No-op if this controller was joined as audience (there's
   /// nothing local to mute).
   Future<void> setMicMuted(bool muted) async {
     await _engine?.muteLocalAudioStream(muted);
@@ -153,21 +131,6 @@ class AgoraChannelController {
     _statusPollTimer?.cancel();
     unawaited(leave());
     _statusController.close();
-  }
-
-  /// permission_handler's platform support varies (notably: limited on
-  /// Windows/Linux desktop). Treated as best-effort - if the platform
-  /// can't report a permission status at all, proceed and let Agora's
-  /// own mic-open call surface any real failure, rather than blocking
-  /// every desktop platform on a permission API that may not exist there.
-  Future<void> _requestMicrophonePermission() async {
-    if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
-      return;
-    }
-    final status = await Permission.microphone.request();
-    if (!status.isGranted) {
-      throw StateError('Microphone permission was not granted.');
-    }
   }
 
   void _setStatus(AgoraConnectionStatus status) {

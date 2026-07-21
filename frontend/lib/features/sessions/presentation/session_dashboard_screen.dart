@@ -53,11 +53,6 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
   bool _muted = false;
   Object? _micError;
 
-  /// Mic on/off is deliberately independent of session status (see
-  /// SessionBroadcastView) - this is an explicit opt-in action, not
-  /// something that auto-connects when the dashboard opens, since
-  /// joining a live audio channel shouldn't surprise the Guide with a
-  /// mic-permission prompt just for viewing their session.
   Future<void> _goLive() async {
     setState(() {
       _micConnecting = true;
@@ -124,7 +119,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
           statusStream: _micController.statusStream,
           connecting: _micConnecting,
           muted: _muted,
-          sessionEnded: session.status == SessionStatus.ended,
+          sessionActive: session.status == SessionStatus.active,
           onGoLive: _goLive,
           onToggleMute: _toggleMute,
           onStop: _stopBroadcasting,
@@ -206,7 +201,7 @@ class _MicControl extends StatelessWidget {
     required this.statusStream,
     required this.connecting,
     required this.muted,
-    required this.sessionEnded,
+    required this.sessionActive,
     required this.onGoLive,
     required this.onToggleMute,
     required this.onStop,
@@ -216,7 +211,7 @@ class _MicControl extends StatelessWidget {
   final Stream<AgoraConnectionStatus> statusStream;
   final bool connecting;
   final bool muted;
-  final bool sessionEnded;
+  final bool sessionActive;
   final VoidCallback onGoLive;
   final VoidCallback onToggleMute;
   final VoidCallback onStop;
@@ -232,10 +227,13 @@ class _MicControl extends StatelessWidget {
             current == AgoraConnectionStatus.connecting;
 
         if (!isLive) {
+          if (!sessionActive) {
+            return const SizedBox.shrink();
+          }
           return FilledButton.icon(
-            onPressed: (connecting || sessionEnded) ? null : onGoLive,
+            onPressed: connecting ? null : onGoLive,
             icon: const Icon(Icons.mic_outlined),
-            label: Text(sessionEnded ? 'Session ended' : 'Go live'),
+            label: const Text('Go live'),
           );
         }
 
@@ -321,15 +319,17 @@ class _ChannelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final code = channel.interpreterCode;
     return ListTile(
       title: Text(channel.language + (channel.isSource ? ' (source)' : '')),
-      subtitle: Text('Interpreter code: ${channel.interpreterCode}'),
-      trailing: IconButton(
-        icon: const Icon(Icons.copy),
-        tooltip: 'Copy',
-        onPressed: () =>
-            Clipboard.setData(ClipboardData(text: channel.interpreterCode)),
-      ),
+      subtitle: code != null ? Text('Interpreter code: $code') : null,
+      trailing: code != null
+          ? IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: 'Copy',
+              onPressed: () => Clipboard.setData(ClipboardData(text: code)),
+            )
+          : null,
     );
   }
 }

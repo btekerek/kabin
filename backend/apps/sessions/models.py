@@ -1,31 +1,3 @@
-"""
-Sessions app: the core event domain.
-
-A Session belongs to one Guide and always has exactly one source Channel
-(is_source=True, the stage feed) plus one or more target Channels. Both
-the session's listener_code and each channel's interpreter_code are short,
-human-typeable join codes - deliberately guessable, per the project spec,
-so lookups must be rate-limited (that's enforced at the view layer, not
-here).
-
-Status is a small state machine, not a free-form field: not_started ->
-active -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to). Q&A (raise hand / floor / speak) is not
-implemented yet - see ADR-004 for the deferred design - so the state
-machine has no qa_mode state until that's built.
-
-ListenerSession tracks anonymous listener joins (see ADR-002) - one row
-per (session, listener_uuid), used to enforce the listener cap and to
-let a listener switch channels without losing/re-spending their spot.
-
-ChannelInterpreter tracks which interpreter currently owns a channel
-(see ADR-003) - one row per channel, since exactly one interpreter may
-broadcast into a channel at a time.
-
-Message is chat (see ADR-005) - one table for all three sender kinds,
-since chat rendering needs them interleaved in a single timeline anyway.
-"""
-
 from django.conf import settings
 from django.db import models
 
@@ -37,9 +9,10 @@ class Session(models.Model):
         ENDED = "ended", "Ended"
 
     # Legal transitions, enforced server-side so a client bug can never
-    # walk a session back out of "ended".
+    # walk a session back out of "ended". not_started -> ended is allowed
+    # so a session that's never gone live can still be ended/cancelled.
     _ALLOWED_TRANSITIONS = {
-        Status.NOT_STARTED: {Status.ACTIVE},
+        Status.NOT_STARTED: {Status.ACTIVE, Status.ENDED},
         Status.ACTIVE: {Status.NOT_STARTED, Status.ENDED},
         Status.ENDED: set(),
     }
@@ -66,7 +39,13 @@ class Session(models.Model):
 class Channel(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="channels")
     language = models.CharField(max_length=10)
-    interpreter_code = models.CharField(max_length=20, unique=True, db_index=True)
+    # Null for the source channel: nobody joins the source with a code -
+    # listeners join the whole session via the listener PIN, and
+    # interpreters join their own target channel via its code. Only
+    # target (is_source=False) channels ever get one.
+    interpreter_code = models.CharField(
+        max_length=20, unique=True, db_index=True, null=True, blank=True
+    )
     is_source = models.BooleanField(default=False)
 
     class Meta:
