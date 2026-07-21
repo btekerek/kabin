@@ -163,9 +163,8 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
       floatingActionButton: ChatFab(
         args: ChatArgs(
           sessionId: widget.args.joinResult.channel.sessionId,
-          socketQueryParams: {
-            'token': ref.read(authSessionProvider).accessToken ?? '',
-          },
+          channelId: widget.args.joinResult.channel.id,
+          accessToken: ref.read(authSessionProvider).accessToken ?? '',
           title: 'Chat',
         ),
       ),

@@ -6,7 +6,6 @@ void main() {
     test('parses each backend value', () {
       expect(senderKindFromJson('guide'), SenderKind.guide);
       expect(senderKindFromJson('interpreter'), SenderKind.interpreter);
-      expect(senderKindFromJson('listener'), SenderKind.listener);
     });
 
     test('throws on an unrecognized value', () {
@@ -15,42 +14,41 @@ void main() {
   });
 
   group('ChatMessage.fromJson', () {
-    test('parses a guide-sent message (sender is a user id)', () {
+    test('parses a general (channel-less) guide-sent message', () {
       final message = ChatMessage.fromJson({
         'id': 1,
+        'channel': null,
         'sender_kind': 'guide',
         'sender': 7,
         'sender_name': 'Guide Person',
-        'sender_listener_uuid': null,
         'body': 'Welcome everyone',
         'created_at': '2026-07-17T12:00:00Z',
       });
 
       expect(message.id, 1);
+      expect(message.channelId, isNull);
       expect(message.senderKind, SenderKind.guide);
       expect(message.senderId, 7);
       expect(message.senderName, 'Guide Person');
-      expect(message.senderListenerUuid, isNull);
       expect(message.body, 'Welcome everyone');
       expect(message.createdAt, DateTime.parse('2026-07-17T12:00:00Z'));
     });
 
-    test('parses a listener-sent message (sender is null, uuid is set)', () {
+    test('parses a channel-scoped interpreter message', () {
       final message = ChatMessage.fromJson({
         'id': 2,
-        'sender_kind': 'listener',
-        'sender': null,
-        'sender_name': null,
-        'sender_listener_uuid': 'b3b8c9d0-1234-4a5b-8c6d-000000000000',
-        'body': 'Can you hear me?',
+        'channel': 5,
+        'sender_kind': 'interpreter',
+        'sender': 3,
+        'sender_name': 'Relay Person',
+        'body': 'Switching in 10 seconds',
         'created_at': '2026-07-17T12:01:00Z',
       });
 
-      expect(message.senderKind, SenderKind.listener);
-      expect(message.senderId, isNull);
-      expect(message.senderName, isNull);
-      expect(
-          message.senderListenerUuid, 'b3b8c9d0-1234-4a5b-8c6d-000000000000');
+      expect(message.channelId, 5);
+      expect(message.senderKind, SenderKind.interpreter);
+      expect(message.senderId, 3);
+      expect(message.senderName, 'Relay Person');
     });
   });
 }

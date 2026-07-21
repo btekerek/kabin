@@ -6,6 +6,7 @@ import 'package:kabin/core/auth/token_pair.dart';
 import 'package:kabin/features/auth/data/auth_repository.dart';
 import 'package:kabin/features/auth/domain/user.dart';
 import 'package:kabin/features/chat/data/chat_repository.dart';
+import 'package:kabin/features/chat/domain/chat_target.dart';
 import 'package:kabin/features/chat/domain/message.dart';
 import 'package:kabin/features/sessions/data/session_repository.dart';
 import 'package:kabin/features/sessions/domain/language.dart';
@@ -157,18 +158,14 @@ class FakeChatRepository extends ChatRepository {
 
   @override
   Future<List<ChatMessage>> history(
-    int sessionId, {
+    ChatTarget target, {
     int? beforeId,
     int limit = 50,
   }) async =>
       historyToReturn;
 
   @override
-  Future<ChatMessage> send({
-    required int sessionId,
-    required String body,
-    String? listenerUuid,
-  }) {
+  Future<ChatMessage> send({required ChatTarget target, required String body}) {
     sentBodies.add(body);
     if (sendCompleter != null) return sendCompleter!.future;
     if (nextSendError != null) {

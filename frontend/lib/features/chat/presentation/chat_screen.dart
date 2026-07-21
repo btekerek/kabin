@@ -8,16 +8,18 @@ import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../data/chat_socket.dart';
+import '../domain/chat_target.dart';
 import '../domain/message.dart';
 import '../state/chat_controller.dart';
 import '../state/chat_providers.dart';
 import 'chat_args.dart';
 
-/// One screen reused by Guide and Interpreter - both read/send the same
-/// session's messages (see IsSessionParticipant on the backend); only
-/// [ChatArgs.socketQueryParams] differs between them. Owns a
-/// ChatController for the screen's lifetime, same pattern as
-/// ListeningScreen/BroadcastingScreen owning an AgoraChannelController.
+/// One screen reused by Guide and Interpreter. A guide only ever sees
+/// the general (session-wide) scope; an interpreter also has their own
+/// channel's scope, shown as a second tab (see ChatArgs.channelId).
+/// Owns one ChatController per scope shown, for the screen's lifetime -
+/// same pattern as ListeningScreen/BroadcastingScreen owning an
+/// AgoraChannelController.
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.args});
 
@@ -28,7 +30,88 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
-  late final ChatController _controller;
+  late final ChatController _generalController;
+  ChatController? _channelController;
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = ref.read(chatRepositoryProvider);
+
+    _generalController = ChatController(
+      repository: repository,
+      target: ChatTarget.general(widget.args.sessionId),
+    )..connect(widget.args.accessToken);
+
+    final channelId = widget.args.channelId;
+    if (channelId != null) {
+      _channelController = ChatController(
+        repository: repository,
+        target: ChatTarget.channel(channelId),
+      )..connect(widget.args.accessToken);
+    }
+  }
+
+  @override
+  void dispose() {
+    _generalController.dispose();
+    _channelController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final channelController = _channelController;
+    final currentUserId = ref.read(authControllerProvider).valueOrNull?.id;
+
+    if (channelController == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: KabinAppBarTitle(widget.args.title),
+          actions: const [ProfileMenu(), SizedBox(width: 4)],
+        ),
+        body: _ChatPane(
+            controller: _generalController, currentUserId: currentUserId),
+      );
+    }
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: KabinAppBarTitle(widget.args.title),
+          actions: const [ProfileMenu(), SizedBox(width: 4)],
+          bottom: const TabBar(
+            tabs: [Tab(text: 'GENERAL'), Tab(text: 'CHANNEL')],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _ChatPane(
+                controller: _generalController, currentUserId: currentUserId),
+            _ChatPane(
+                controller: channelController, currentUserId: currentUserId),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The message list + input box for one [ChatController]. Split out from
+/// ChatScreen so an interpreter's General and Channel tabs can each show
+/// their own independently-scrolling pane over the same screen.
+class _ChatPane extends StatefulWidget {
+  const _ChatPane({required this.controller, required this.currentUserId});
+
+  final ChatController controller;
+  final int? currentUserId;
+
+  @override
+  State<_ChatPane> createState() => _ChatPaneState();
+}
+
+class _ChatPaneState extends State<_ChatPane> {
   final _bodyController = TextEditingController();
   final _scrollController = ScrollController();
 
@@ -40,20 +123,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = ChatController(
-      repository: ref.read(chatRepositoryProvider),
-      sessionId: widget.args.sessionId,
-    );
-    _controller.messagesStream.listen((messages) {
+    widget.controller.messagesStream.listen((messages) {
       if (mounted) setState(() => _messages = messages);
     });
-    _controller.pendingStream.listen((pending) {
+    widget.controller.pendingStream.listen((pending) {
       if (mounted) setState(() => _pending = pending);
     });
-    _controller.statusStream.listen((status) {
+    widget.controller.statusStream.listen((status) {
       if (mounted) setState(() => _status = status);
     });
-    _controller.connect(widget.args.socketQueryParams);
     _scrollController.addListener(_onScroll);
   }
 
@@ -69,10 +147,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _loadOlder() async {
-    if (_loadingOlder || !_controller.hasMoreHistory) return;
+    if (_loadingOlder || !widget.controller.hasMoreHistory) return;
     setState(() => _loadingOlder = true);
     try {
-      await _controller.loadOlder();
+      await widget.controller.loadOlder();
     } finally {
       if (mounted) setState(() => _loadingOlder = false);
     }
@@ -87,27 +165,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // retry/dismiss controls - catching here just stops the rethrow from
     // becoming an unhandled async error, it isn't swallowing anything
     // the user can't already see and act on.
-    unawaited(
-        _controller.send(body: body, listenerUuid: widget.args.listenerUuid));
+    unawaited(widget.controller.send(body: body));
   }
 
-  /// Whether [message] was sent by the person looking at this screen -
-  /// drives which side of the thread it renders on. Listeners are
-  /// identified by [ChatArgs.listenerUuid] (no account); Guide/Interpreter
-  /// by the authenticated user's id, since either can be viewing this
-  /// same shared screen (see class doc).
   bool _isMine(ChatMessage message) {
-    final listenerUuid = widget.args.listenerUuid;
-    if (listenerUuid != null) {
-      return message.senderListenerUuid == listenerUuid;
-    }
-    final currentUserId = ref.read(authControllerProvider).valueOrNull?.id;
+    final currentUserId = widget.currentUserId;
     return currentUserId != null && message.senderId == currentUserId;
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     _bodyController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -117,97 +184,86 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final leadingCount = _loadingOlder ? 1 : 0;
     final itemCount = leadingCount + _messages.length + _pending.length;
-    return Scaffold(
-      appBar: AppBar(
-        title: KabinAppBarTitle(widget.args.title),
-        // Listeners have no account (see ADR-002) - the menu only makes
-        // sense for the Guide/Interpreter side of this shared screen.
-        actions: widget.args.listenerUuid == null
-            ? const [ProfileMenu(), SizedBox(width: 4)]
-            : null,
-      ),
-      body: Column(
-        children: [
-          if (_status != ChatConnectionStatus.connected)
-            _StatusBanner(status: _status),
-          Expanded(
-            child: itemCount == 0
-                ? Center(
-                    child: Text(
-                      'No messages yet',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.outline),
-                    ),
-                  )
-                : Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: itemCount,
-                        itemBuilder: (context, index) {
-                          if (_loadingOlder && index == 0) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Center(
-                                child: SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
+    return Column(
+      children: [
+        if (_status != ChatConnectionStatus.connected)
+          _StatusBanner(status: _status),
+        Expanded(
+          child: itemCount == 0
+              ? Center(
+                  child: Text(
+                    'No messages yet',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline),
+                  ),
+                )
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: itemCount,
+                      itemBuilder: (context, index) {
+                        if (_loadingOlder && index == 0) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
-                            );
-                          }
-                          final adjusted = index - leadingCount;
-                          if (adjusted < _messages.length) {
-                            final message = _messages[adjusted];
-                            return _MessageTile(
-                              message: message,
-                              isMine: _isMine(message),
-                            );
-                          }
-                          final pending = _pending[adjusted - _messages.length];
-                          return _PendingTile(
-                            pending: pending,
-                            onRetry: () => _controller.retry(pending),
-                            onDismiss: () => _controller.dismiss(pending),
+                            ),
                           );
-                        },
-                      ),
+                        }
+                        final adjusted = index - leadingCount;
+                        if (adjusted < _messages.length) {
+                          final message = _messages[adjusted];
+                          return _MessageTile(
+                            message: message,
+                            isMine: _isMine(message),
+                          );
+                        }
+                        final pending = _pending[adjusted - _messages.length];
+                        return _PendingTile(
+                          pending: pending,
+                          onRetry: () => widget.controller.retry(pending),
+                          onDismiss: () => widget.controller.dismiss(pending),
+                        );
+                      },
                     ),
                   ),
-          ),
-          SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _bodyController,
-                          decoration:
-                              const InputDecoration(hintText: 'Message'),
-                          onSubmitted: (_) => _send(),
-                        ),
+                ),
+        ),
+        SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _bodyController,
+                        decoration: const InputDecoration(hintText: 'Message'),
+                        onSubmitted: (_) => _send(),
                       ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        icon: const Icon(Icons.send),
-                        onPressed: _send,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      icon: const Icon(Icons.send),
+                      onPressed: _send,
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -310,8 +366,6 @@ class _MessageTile extends StatelessWidget {
         return 'GUIDE';
       case SenderKind.interpreter:
         return 'INTERPRETER';
-      case SenderKind.listener:
-        return 'LISTENER';
     }
   }
 

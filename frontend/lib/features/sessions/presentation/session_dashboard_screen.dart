@@ -40,9 +40,7 @@ class SessionDashboardScreen extends ConsumerWidget {
           : ChatFab(
               args: ChatArgs(
                 sessionId: session.id,
-                socketQueryParams: {
-                  'token': ref.read(authSessionProvider).accessToken ?? '',
-                },
+                accessToken: ref.read(authSessionProvider).accessToken ?? '',
                 title: 'Chat - ${session.name}',
               ),
             ),
