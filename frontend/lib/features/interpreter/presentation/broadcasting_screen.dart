@@ -17,6 +17,8 @@ import '../../chat/presentation/chat_args.dart';
 import '../../chat/presentation/chat_fab.dart';
 import '../../listener/domain/listener_channel.dart';
 import '../../sessions/domain/channel.dart';
+import '../../sessions/presentation/language_label.dart';
+import '../../sessions/state/session_providers.dart';
 import '../data/mic_presence_socket.dart';
 import '../domain/interpreter_join_result.dart';
 import '../state/interpreter_providers.dart';
@@ -250,9 +252,11 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(appStringsProvider);
+    final languageNames = ref.watch(languageNamesProvider);
     return Scaffold(
       appBar: AppBar(
-        title: KabinAppBarTitle(_channel.language),
+        title: KabinAppBarTitle(
+            languageDisplayLabel(languageNames, _channel.language)),
         actions: const [
           LanguageMenu(),
           SizedBox(width: 4),
@@ -448,7 +452,7 @@ class _LanguagePickers extends ConsumerWidget {
   }
 }
 
-class _LanguageDropdown extends StatelessWidget {
+class _LanguageDropdown extends ConsumerWidget {
   const _LanguageDropdown({
     required this.label,
     required this.value,
@@ -464,7 +468,8 @@ class _LanguageDropdown extends StatelessWidget {
   final bool enabled;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final languageNames = ref.watch(languageNamesProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -474,7 +479,11 @@ class _LanguageDropdown extends StatelessWidget {
           value: value,
           items: [
             for (final option in options)
-              DropdownMenuItem(value: option.id, child: Text(option.language)),
+              DropdownMenuItem(
+                value: option.id,
+                child:
+                    Text(languageDisplayLabel(languageNames, option.language)),
+              ),
           ],
           onChanged: enabled && onChanged != null
               ? (id) {

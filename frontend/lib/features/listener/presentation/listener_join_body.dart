@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../l10n/locale_providers.dart';
+import '../../sessions/presentation/language_label.dart';
 import '../domain/listener_channel.dart';
 import '../domain/listener_session_summary.dart';
 import '../state/listener_providers.dart';
@@ -162,7 +163,7 @@ class _ListenerJoinBodyState extends ConsumerState<ListenerJoinBody> {
                   final channel = session.channels[index];
                   return Card(
                     child: ListTile(
-                      title: Text(channel.language),
+                      title: LanguageLabel(channel.language),
                       subtitle: channel.isSource
                           ? Text(t.originalStageAudioLabel)
                           : null,
