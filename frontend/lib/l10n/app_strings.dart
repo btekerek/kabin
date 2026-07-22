@@ -194,4 +194,17 @@ class AppStrings {
   String get sourceDropdownLabel => _pick('Source', 'Kaynak');
   String get targetDropdownLabel => _pick('Target', 'Hedef');
   String get chatLabel => _pick('Chat', 'Sohbet');
+
+  // Listener join + listening screens
+  String get joinSessionTitle => _pick('Join a session', 'Bir oturuma katıl');
+  String get listenerPinLabel => _pick('Listener PIN', "Dinleyici PIN'i");
+  String get findSessionButton => _pick('FIND SESSION', 'OTURUM BUL');
+  String get pickLanguageToListenPrompt =>
+      _pick('Pick a language to listen in:', 'Dinlemek istediğin dili seç:');
+  String get originalStageAudioLabel =>
+      _pick('Original (stage) audio', 'Orijinal (sahne) sesi');
+  String get listeningInLabel => _pick('Listening in', 'Şu dilde dinliyorsun');
+  String get listeningStatusLabel => _pick('Listening', 'Dinleniyor');
+  String get sessionEndedStatusLabel =>
+      _pick('Session ended', 'Oturum sona erdi');
 }
