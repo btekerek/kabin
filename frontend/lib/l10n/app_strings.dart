@@ -43,4 +43,49 @@ class AppStrings {
   String get updatePassword => _pick('UPDATE PASSWORD', 'ŞİFREYİ GÜNCELLE');
   String get comingSoon => _pick('Coming soon.', 'Yakında.');
   String get languageMenuTooltip => _pick('Language', 'Dil');
+
+  // Shared across auth screens
+  String get passwordLabel => _pick('Password', 'Şifre');
+  String get passwordRequired => _pick('Password is required', 'Şifre gerekli');
+  String get showPasswordTooltip => _pick('Show password', 'Şifreyi göster');
+  String get hidePasswordTooltip => _pick('Hide password', 'Şifreyi gizle');
+
+  // Login screen
+  String get emailOrUsernameLabel =>
+      _pick('Email or username', 'E-posta veya kullanıcı adı');
+  String get emailOrUsernameRequired => _pick(
+      'Email or username is required', 'E-posta veya kullanıcı adı gerekli');
+  String get logIn => _pick('LOG IN', 'GİRİŞ YAP');
+  String get noAccountRegisterPrompt =>
+      _pick("Don't have an account? Register", 'Hesabın yok mu? Kayıt ol');
+  String get listenerJoinPrompt => _pick('Just here to listen? Join with a PIN',
+      'Sadece dinlemek mi istiyorsun? PIN ile katıl');
+
+  // Register screen
+  String get createAccountTitle => _pick('Create an account', 'Hesap oluştur');
+  String get emailLabel => _pick('Email', 'E-posta');
+  String get emailRequired => _pick('Email is required', 'E-posta gerekli');
+  String get usernameOptionalLabel =>
+      _pick('Username (optional)', 'Kullanıcı adı (opsiyonel)');
+  String get confirmPasswordLabel =>
+      _pick('Confirm password', 'Şifreyi onayla');
+  String get registerButton => _pick('REGISTER', 'KAYIT OL');
+  String get alreadyHaveAccountPrompt => _pick(
+      'Already have an account? Log in', 'Zaten bir hesabın var mı? Giriş yap');
+
+  // Verify-email screen
+  String get verifyEmailTitle =>
+      _pick('Verify your email', 'E-postanı doğrula');
+  String codeSentMessage(String email) => _pick(
+      'We sent a 6-digit code to $email.',
+      '$email adresine 6 haneli bir kod gönderdik.');
+  String get verificationCodeLabel =>
+      _pick('Verification code', 'Doğrulama kodu');
+  String get enterSixDigitCode =>
+      _pick('Enter the 6-digit code', '6 haneli kodu gir');
+  String get verifyButton => _pick('VERIFY', 'DOĞRULA');
+  String get resendCodePrompt =>
+      _pick("Didn't get a code? Resend", 'Kod gelmedi mi? Tekrar gönder');
+  String get resendCodeSent => _pick('Code sent - check your inbox.',
+      'Kod gönderildi - gelen kutunu kontrol et.');
 }

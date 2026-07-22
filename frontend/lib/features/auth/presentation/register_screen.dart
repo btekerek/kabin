@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/password_field.dart';
+import '../../../l10n/locale_providers.dart';
 import '../state/auth_providers.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -56,8 +58,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
-      appBar: AppBar(title: const KabinAppBarTitle('Create an account')),
+      appBar: AppBar(
+        title: KabinAppBarTitle(t.createAccountTitle),
+        actions: const [LanguageMenu()],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -78,33 +84,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [AutofillHints.email],
-                        decoration: const InputDecoration(labelText: 'Email'),
+                        decoration: InputDecoration(labelText: t.emailLabel),
                         validator: (value) => (value == null || value.isEmpty)
-                            ? 'Email is required'
+                            ? t.emailRequired
                             : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _usernameController,
                         autofillHints: const [AutofillHints.newUsername],
-                        decoration: const InputDecoration(
-                            labelText: 'Username (optional)'),
+                        decoration:
+                            InputDecoration(labelText: t.usernameOptionalLabel),
                       ),
                       const SizedBox(height: 16),
                       PasswordField(
                         controller: _passwordController,
-                        labelText: 'Password',
+                        labelText: t.passwordLabel,
                         autofillHints: const [AutofillHints.newPassword],
                         validator: (value) => (value == null || value.isEmpty)
-                            ? 'Password is required'
+                            ? t.passwordRequired
                             : null,
                       ),
                       const SizedBox(height: 16),
                       PasswordField(
                         controller: _confirmController,
-                        labelText: 'Confirm password',
+                        labelText: t.confirmPasswordLabel,
                         validator: (value) => value != _passwordController.text
-                            ? 'Passwords do not match'
+                            ? t.passwordsDoNotMatch
                             : null,
                         onFieldSubmitted: (_) => _submit(),
                       ),
@@ -127,12 +133,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('REGISTER'),
+                            : Text(t.registerButton),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () => context.pop(),
-                        child: const Text('Already have an account? Log in'),
+                        child: Text(t.alreadyHaveAccountPrompt),
                       ),
                     ],
                   ),
