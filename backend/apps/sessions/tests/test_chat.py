@@ -73,7 +73,7 @@ def session_with_channels(guide):
 
 
 def _channel(session, language):
-    return next(c for c in session["channels"] if c["language"] == language)
+    return next(c for c in session["channels"] if c["language"].lower() == language.lower())
 
 
 def _join(user, channel):
