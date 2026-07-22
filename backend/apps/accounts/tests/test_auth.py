@@ -3,7 +3,7 @@ Auth endpoint tests: register, login (by email or username), refresh
 rotation, logout blacklist.
 
 The refresh-rotation test is the one that matters most: it proves a used
-refresh token cannot be reused, which is the whole point of ADR-001.
+refresh token cannot be reused.
 """
 
 import pytest
@@ -159,7 +159,7 @@ def test_refresh_rotates_token_and_blacklists_the_old_one(api_client, guide_user
     assert new_refresh != old_refresh
 
     # Reusing the old (now-rotated) refresh token must fail: this is the
-    # compromise-detection tripwire from ADR-001.
+    # compromise-detection tripwire.
     reuse_attempt = api_client.post("/api/auth/refresh/", {"refresh": old_refresh})
     assert reuse_attempt.status_code == status.HTTP_401_UNAUTHORIZED
 

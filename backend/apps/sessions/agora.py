@@ -9,11 +9,7 @@ match - buildTokenWithAccount signs for a string user account and
 requires the client to join via the user-account API instead, which we
 don't do. Signing account-based tokens for a uid-based join causes
 Agora's edge to reject the connection silently (no local onError,
-join just never completes). See ADR-002 for why listeners get an
-audience-role, short-TTL token bound to a single channel; ADR-003 for
-why interpreters get a separate publisher-role builder rather than a
-shared function with a role flag. Q&A (raise hand / floor / speak) is
-not implemented yet - see ADR-004 for the deferred design.
+join just never completes).
 """
 
 import time

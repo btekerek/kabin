@@ -1,7 +1,7 @@
 """
-Language registry (see ADR-006): session creation only accepts real
-ISO 639-1 language codes, and the public /api/languages/ endpoint
-exposes the same registry clients validate against.
+Session creation only accepts real ISO 639-1 language codes, and the
+public /api/languages/ endpoint exposes the same registry clients
+validate against.
 """
 
 import pytest

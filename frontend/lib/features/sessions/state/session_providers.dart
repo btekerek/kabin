@@ -11,7 +11,7 @@ final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
   return SessionRepository(ref.watch(dioProvider));
 });
 
-/// The registry from ADR-006 - fetched once and reused everywhere a
+/// The full language registry - fetched once and reused everywhere a
 /// language picker is needed. `keepAlive` isn't set explicitly; this is
 /// a plain FutureProvider so Riverpod's default (kept alive as long as
 /// something's watching it, which in practice is "the whole time the

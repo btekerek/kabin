@@ -9,7 +9,7 @@ class ListenerRepository {
   final Dio _dio;
 
   /// PIN -> session summary + channel list. Public, unauthenticated,
-  /// rate-limited server-side (see ADR-002's session-lookup throttle) -
+  /// rate-limited server-side (session-lookup throttle) -
   /// nothing extra to handle here, a 429 surfaces as a normal
   /// {code, message} error like any other.
   Future<ListenerSessionSummary> lookup(String listenerCode) async {

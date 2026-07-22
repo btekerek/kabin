@@ -12,7 +12,7 @@ final listenerIdentityProvider = Provider<ListenerIdentity>((ref) {
   return ListenerIdentity();
 });
 
-/// The persisted listener_uuid, created on first use (see ADR-002 /
+/// The persisted listener_uuid, created on first use (see
 /// ListenerIdentity). A plain FutureProvider is enough - this value
 /// never changes once created, there's no "state" to manage beyond
 /// reading it.

@@ -1,5 +1,5 @@
 """
-Registry of supported event content languages (see ADR-006).
+Registry of supported event content languages.
 
 This is deliberately NOT the same thing as the app's own UI language
 (English/Turkish for now, via frontend/lib/l10n/ - see the README).

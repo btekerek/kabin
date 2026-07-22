@@ -191,7 +191,7 @@ class SessionLookupView(APIView):
     No auth - listeners aren't Django users. Join codes are short and
     guessable by design (see codes.py), so this is the one endpoint that
     risk is real for; it's rate-limited via the "session-lookup" throttle
-    scope (see ADR-002).
+    scope.
     """
 
     permission_classes = [permissions.AllowAny]
@@ -220,7 +220,7 @@ class SessionJoinView(APIView):
     """Public: listener picks a channel, gets back an Agora audience token.
 
     Rejoining with the same listener_uuid switches channel instead of
-    spending a second seat against the listener cap - see ADR-002.
+    spending a second seat against the listener cap.
     """
 
     permission_classes = [permissions.AllowAny]

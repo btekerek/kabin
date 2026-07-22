@@ -2,8 +2,8 @@ import 'channel.dart';
 
 /// Mirrors the backend's Session status state machine exactly (see
 /// apps/sessions/models.py) - not_started -> active -> ended, ended
-/// terminal. Q&A (raise hand / floor / speak) is not implemented yet
-/// (see ADR-004), so there's no qa_mode state to mirror here.
+/// terminal. Q&A (raise hand / floor / speak) is not implemented yet,
+/// so there's no qa_mode state to mirror here.
 enum SessionStatus { notStarted, active, ended }
 
 SessionStatus sessionStatusFromJson(String value) {

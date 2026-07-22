@@ -99,7 +99,7 @@ class AgoraDualChannelController {
     // per connection. The backend's tokens are wildcard (uid 0 at
     // generation time), which is exactly what lets the client pick any
     // real uid here and still validate. Now that more than one
-    // interpreter can join the same target channel (see ADR-008), that
+    // interpreter can join the same target channel, that
     // uid has to be random rather than a fixed constant - two clients on
     // the same channel with the same uid conflict.
     final primaryConnection = RtcConnection(

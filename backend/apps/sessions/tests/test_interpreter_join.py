@@ -2,7 +2,7 @@
 Interpreter channel-claiming flow: code -> claim -> Agora publisher token.
 
 Unlike listener join, these endpoints require a real authenticated
-account (see ADR-003) - any account may claim a channel, so tests
+account - any account may claim a channel, so tests
 force_authenticate rather than hitting them anonymously.
 """
 

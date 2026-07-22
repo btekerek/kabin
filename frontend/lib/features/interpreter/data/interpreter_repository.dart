@@ -9,7 +9,7 @@ import '../domain/interpreter_join_result.dart';
 /// wraps ChannelJoinView/ChannelLeaveView/ChannelRelayView/
 /// ChannelSwitchView. Unlike the listener flow, there's no separate
 /// lookup step: the interpreter code alone identifies the channel to
-/// claim (see ADR-003).
+/// claim.
 class InterpreterRepository {
   InterpreterRepository(this._dio);
 

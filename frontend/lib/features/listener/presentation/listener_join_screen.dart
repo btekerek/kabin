@@ -8,7 +8,7 @@ import 'listener_join_body.dart';
 
 /// No account needed - a Listener identifies themselves with a PIN
 /// (found via SessionLookupView) and a persisted UUID (ListenerIdentity),
-/// never a login. See ADR-002.
+/// never a login.
 ///
 /// Standalone route ('/join') for direct deep links; LandingScreen embeds
 /// ListenerJoinBody directly as its listener-first tab instead of
