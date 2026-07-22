@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: kabin
+          MYSQL_USER: kabin
+          MYSQL_PASSWORD: kabin
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DJANGO_SECRET_KEY: ci-test-key
+      DJANGO_DEBUG: "true"
+      MYSQL_DB: kabin
+      MYSQL_USER: kabin
+      MYSQL_PASSWORD: kabin
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: "3306"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install MySQL client headers
+        run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev pkg-config
+      - name: Grant kabin user access to the pytest-django test database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e \
+            "GRANT ALL PRIVILEGES ON \`test_%\`.* TO 'kabin'@'%'; FLUSH PRIVILEGES;"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Run migrations
+        run: python manage.py migrate --noinput
+      - name: Pytest
+        run: pytest
