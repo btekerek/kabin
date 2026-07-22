@@ -21,11 +21,17 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from apps.accounts.emails import generate_verification_code, send_verification_email
-from apps.accounts.models import EmailVerificationCode, User
+from apps.accounts.emails import (
+    generate_verification_code,
+    send_password_reset_email,
+    send_verification_email,
+)
+from apps.accounts.models import EmailVerificationCode, PasswordResetCode, User
 from apps.accounts.serializers import (
+    ConfirmPasswordResetSerializer,
     LoginSerializer,
     RegisterSerializer,
+    RequestPasswordResetSerializer,
     ResendVerificationSerializer,
     UserSerializer,
     VerifyEmailSerializer,
@@ -117,6 +123,66 @@ class ResendVerificationView(APIView):
             send_verification_email(user, code)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RequestPasswordResetView(APIView):
+    """Silently a no-op for an unknown or inactive email - same
+    "don't confirm which emails exist" reasoning as ResendVerificationView.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password-reset"
+
+    def post(self, request):
+        input_serializer = RequestPasswordResetSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        email = input_serializer.validated_data["email"]
+
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if user is not None:
+            code = generate_verification_code()
+            PasswordResetCode.objects.update_or_create(user=user, defaults={"code": code})
+            send_password_reset_email(user, code)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ConfirmPasswordResetView(APIView):
+    """Confirms the emailed code and sets the new password. Issues JWTs
+    directly on success (like VerifyEmailView) so the client doesn't need
+    a second round-trip through /login/ right after resetting.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "password-reset"
+
+    def post(self, request):
+        input_serializer = ConfirmPasswordResetSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        data = input_serializer.validated_data
+
+        user = User.objects.filter(email__iexact=data["email"], is_active=True).first()
+        record = PasswordResetCode.objects.filter(user=user).first() if user else None
+
+        if user is None or record is None:
+            raise KabinAPIException(
+                code="INVALID_CODE", message="That code is invalid or has expired.", status_code=400
+            )
+
+        expiry_cutoff = timezone.now() - timedelta(minutes=settings.PASSWORD_RESET_TTL_MINUTES)
+        if record.created_at < expiry_cutoff or record.code != data["code"]:
+            raise KabinAPIException(
+                code="INVALID_CODE", message="That code is invalid or has expired.", status_code=400
+            )
+
+        user.set_password(data["new_password"])
+        user.save(update_fields=["password"])
+        record.delete()
+
+        refresh = RefreshToken.for_user(user)
+        return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
 
 
 class LoginView(TokenObtainPairView):

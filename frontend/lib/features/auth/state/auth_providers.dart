@@ -125,6 +125,34 @@ class AuthController extends AsyncNotifier<User?> {
     return ref.read(authRepositoryProvider).resendVerification(email);
   }
 
+  /// Fire-and-forget "send me a reset code" - throws on failure like
+  /// resendVerification() so ForgotPasswordScreen can show it locally
+  /// without disturbing the shared logged-out state.
+  Future<void> requestPasswordReset(String email) {
+    return ref.read(authRepositoryProvider).requestPasswordReset(email);
+  }
+
+  /// Confirms the emailed code and logs the account in directly -
+  /// confirmPasswordReset's response is a token pair, exactly like
+  /// verifyEmail's, so this mirrors verifyEmail() rather than register().
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final tokens =
+          await ref.read(authRepositoryProvider).confirmPasswordReset(
+                email: email,
+                code: code,
+                newPassword: newPassword,
+              );
+      ref.read(authSessionProvider).updateTokens(tokens);
+      return ref.read(authRepositoryProvider).me();
+    });
+  }
+
   /// Throws on failure (e.g. USERNAME_IN_USE) rather than going through
   /// AsyncValue.guard like login/register - the caller (ProfileScreen)
   /// shows that error locally, and the shared auth state shouldn't flip

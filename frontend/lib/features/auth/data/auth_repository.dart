@@ -51,6 +51,33 @@ class AuthRepository {
     });
   }
 
+  /// A no-op server-side for an unknown or inactive email - safe to call
+  /// without checking state first (see RequestPasswordResetView).
+  Future<void> requestPasswordReset(String email) async {
+    await _dio.post('/api/auth/request-password-reset/', data: {
+      'email': email,
+    });
+  }
+
+  /// Confirms the code and sets the new password - returns a token pair
+  /// directly (like verifyEmail) so the caller doesn't need a second
+  /// /login/ call right after.
+  Future<TokenPair> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response =
+        await _dio.post('/api/auth/confirm-password-reset/', data: {
+      'email': email,
+      'code': code,
+      'new_password': newPassword,
+    });
+    final data = response.data as Map<String, dynamic>;
+    return TokenPair(
+        access: data['access'] as String, refresh: data['refresh'] as String);
+  }
+
   /// [identifier] is either the account's email or username - see
   /// LoginSerializer, which accepts either interchangeably.
   Future<TokenPair> login({

@@ -36,3 +36,21 @@ def send_verification_email(user, code: str) -> None:
         recipient_list=[user.email],
         fail_silently=False,
     )
+
+
+def send_password_reset_email(user, code: str) -> None:
+    """Same fail_silently=False reasoning as send_verification_email - a
+    reset request whose email silently never sent would strand the user
+    with no way to recover their account and no error to explain why.
+    """
+    send_mail(
+        subject="Your Kabin password reset code",
+        message=(
+            f"Your Kabin password reset code is {code}.\n\n"
+            f"It expires in {settings.PASSWORD_RESET_TTL_MINUTES} minutes.\n\n"
+            "If you didn't request this, you can safely ignore this email."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )

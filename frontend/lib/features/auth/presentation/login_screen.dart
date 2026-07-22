@@ -81,6 +81,13 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                           : null,
                       onFieldSubmitted: (_) => _submit(),
                     ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => context.push('/forgot-password'),
+                        child: Text(t.forgotPasswordPrompt),
+                      ),
+                    ),
                     if (authState.hasError) ...[
                       const SizedBox(height: 16),
                       Text(
