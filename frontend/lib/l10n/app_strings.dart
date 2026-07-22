@@ -207,4 +207,18 @@ class AppStrings {
   String get listeningStatusLabel => _pick('Listening', 'Dinleniyor');
   String get sessionEndedStatusLabel =>
       _pick('Session ended', 'Oturum sona erdi');
+
+  // Chat screen + FAB
+  String get generalTabLabel => _pick('GENERAL', 'GENEL');
+  String get channelTabLabel => _pick('CHANNEL', 'KANAL');
+  String get noMessagesYet => _pick('No messages yet', 'Henüz mesaj yok');
+  String get messageHint => _pick('Message', 'Mesaj');
+  String get connectionLostLabel => _pick('Connection lost', 'Bağlantı koptu');
+  String get guideSenderLabel => _pick('GUIDE', 'REHBER');
+  String get interpreterSenderLabel => _pick('INTERPRETER', 'ÇEVİRMEN');
+  String get sendingLabel => _pick('Sending...', 'Gönderiliyor...');
+  String failedToSendMessage(String error) =>
+      _pick('Failed to send: $error', 'Gönderilemedi: $error');
+  String get retryButton => _pick('RETRY', 'TEKRAR DENE');
+  String get dismissButton => _pick('DISMISS', 'KAPAT');
 }

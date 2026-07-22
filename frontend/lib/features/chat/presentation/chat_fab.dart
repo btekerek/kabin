@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/locale_providers.dart';
 import '../data/chat_socket.dart';
 import '../domain/chat_target.dart';
 import 'chat_args.dart';
@@ -12,16 +14,16 @@ import 'chat_args.dart';
 /// when chat is actually open. Opens a second socket for the channel
 /// scope too when [ChatArgs.channelId] is set, so the badge reflects
 /// unread messages from either tab.
-class ChatFab extends StatefulWidget {
+class ChatFab extends ConsumerStatefulWidget {
   const ChatFab({super.key, required this.args});
 
   final ChatArgs args;
 
   @override
-  State<ChatFab> createState() => _ChatFabState();
+  ConsumerState<ChatFab> createState() => _ChatFabState();
 }
 
-class _ChatFabState extends State<ChatFab> {
+class _ChatFabState extends ConsumerState<ChatFab> {
   final _generalSocket = ChatSocket();
   ChatSocket? _channelSocket;
   int _unread = 0;
@@ -66,8 +68,9 @@ class _ChatFabState extends State<ChatFab> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return FloatingActionButton(
-      tooltip: 'Chat',
+      tooltip: t.chatLabel,
       onPressed: _open,
       child: Badge(
         label: Text('$_unread'),
