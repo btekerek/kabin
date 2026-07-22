@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/network/api_config.dart';
+import '../domain/chat_target.dart';
 import '../domain/message.dart';
 
 /// Mirrors AgoraConnectionStatus's shape (see core/agora) for the same
@@ -12,11 +13,11 @@ import '../domain/message.dart';
 /// loading/error state.
 enum ChatConnectionStatus { connecting, connected, disconnected }
 
-/// Wraps the read-only chat WebSocket (see ChatConsumer/ADR-005 - it
-/// only ever pushes messages created via the REST endpoint, never
-/// accepts writes from the client). One instance is one session's
-/// connection; a screen creates one on entry and disposes it on exit,
-/// same lifecycle pattern as AgoraChannelController.
+/// Wraps the read-only chat WebSocket - it only ever pushes messages
+/// created via the REST endpoint, never accepts writes from the client.
+/// One instance is one [ChatTarget]'s connection; a screen creates one
+/// per scope and disposes it on exit, same lifecycle pattern as
+/// AgoraChannelController.
 class ChatSocket {
   WebSocketChannel? _channel;
   ChatConnectionStatus _status = ChatConnectionStatus.disconnected;
@@ -32,30 +33,22 @@ class ChatSocket {
   Stream<ChatConnectionStatus> get statusStream => _statusController.stream;
   ChatConnectionStatus get status => _status;
 
-  /// [queryParams] is `{'token': accessToken}` for guide/interpreter or
-  /// `{'listener_uuid': uuid}` for a listener - see
-  /// ChatConsumer._authorize for why auth travels in the URL rather than
-  /// a header (neither browsers nor Flutter can attach custom headers to
-  /// a WebSocket handshake).
-  void connect({
-    required int sessionId,
-    required Map<String, String> queryParams,
-  }) {
+  void connect({required ChatTarget target, required String accessToken}) {
     _setStatus(ChatConnectionStatus.connecting);
 
     // ApiConfig.baseUrl is http(s); the socket needs ws(s). Replacing
     // just the first "http" turns "https://" into "wss://" and
     // "http://" into "ws://" in one move.
     final wsBase = ApiConfig.baseUrl.replaceFirst('http', 'ws');
-    final uri = Uri.parse('$wsBase/ws/sessions/$sessionId/chat/')
-        .replace(queryParameters: queryParams);
+    final uri = Uri.parse('$wsBase${target.wsPath}')
+        .replace(queryParameters: {'token': accessToken});
 
     final channel = WebSocketChannel.connect(uri);
     _channel = channel;
     // WebSocketChannel.connect() doesn't guarantee the handshake
-    // succeeded yet - a rejected connection (e.g. NOT_A_PARTICIPANT,
-    // see ChatConsumer._authorize) surfaces as a stream error/onDone
-    // shortly after, which flips status to disconnected below.
+    // succeeded yet - a rejected connection surfaces as a stream
+    // error/onDone shortly after, which flips status to disconnected
+    // below.
     _setStatus(ChatConnectionStatus.connected);
 
     channel.stream.listen(

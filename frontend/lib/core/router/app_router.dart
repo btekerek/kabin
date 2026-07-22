@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/profile_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/verify_email_screen.dart';
 import '../../features/auth/state/auth_providers.dart';
 import '../../features/chat/presentation/chat_args.dart';
 import '../../features/chat/presentation/chat_screen.dart';
@@ -30,7 +31,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     redirect: (context, state) {
       final loggingIn = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/verify-email';
       final onSplash = state.matchedLocation == '/splash';
       final bypassesAuthGate = state.matchedLocation == '/join' ||
           state.matchedLocation == '/listen' ||
@@ -58,6 +60,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+        path: '/verify-email',
+        builder: (context, state) =>
+            VerifyEmailScreen(email: state.extra! as String),
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
           path: '/profile', builder: (context, state) => const ProfileScreen()),

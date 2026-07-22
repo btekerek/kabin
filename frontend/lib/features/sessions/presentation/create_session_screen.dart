@@ -19,9 +19,6 @@ class CreateSessionScreen extends ConsumerStatefulWidget {
 class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  // Description isn't sent anywhere yet - the API doesn't have a field for
-  // it. Collecting it in the UI now so the form's finished; wiring it up
-  // is one of the deferred backend-branch items.
   final _descriptionController = TextEditingController();
 
   // Single-select in practice (the sheet enforces at most one code here),
@@ -59,6 +56,7 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
     try {
       final session = await ref.read(sessionRepositoryProvider).createSession(
             name: _nameController.text.trim(),
+            description: _descriptionController.text.trim(),
             sourceLanguage: _sourceLanguageCodes.first,
             targetLanguages: _targetLanguageCodes.toList(),
           );

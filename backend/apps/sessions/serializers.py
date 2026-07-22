@@ -16,6 +16,10 @@ from apps.sessions.models import Channel, Message, Session
 
 
 class ChannelSerializer(serializers.ModelSerializer):
+    # Lets the client gate the mic control (only active sessions can be
+    # broadcast into) without a second request.
+    session_status = serializers.CharField(source="session.status", read_only=True)
+
     class Meta:
         model = Channel
         # `session` (the owning session's id) is included so
@@ -23,7 +27,7 @@ class ChannelSerializer(serializers.ModelSerializer):
         # reach session-scoped endpoints (e.g. chat) - it never learns
         # the session id any other way, since interpreters only ever
         # identify themselves by channel code (see ADR-003).
-        fields = ["id", "session", "language", "interpreter_code", "is_source"]
+        fields = ["id", "session", "session_status", "language", "interpreter_code", "is_source"]
         read_only_fields = fields
 
 
@@ -35,6 +39,7 @@ class SessionSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "description",
             "source_language",
             "listener_code",
             "status",
@@ -72,30 +77,37 @@ class SessionJoinSerializer(serializers.Serializer):
 
 
 class InterpreterCodeSerializer(serializers.Serializer):
-    """Shared input shape for both channel join and leave."""
+    """Shared input shape for both channel join and leave.
+
+    Codes are always generated upper-case (see codes.py), so normalizing
+    input here makes lookups case-insensitive without needing an iexact
+    query - "en123456" and "EN123456" both resolve to the same channel.
+    """
 
     interpreter_code = serializers.CharField(max_length=20)
 
+    def validate_interpreter_code(self, value):
+        return value.strip().upper()
+
 
 class MessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source="sender.username", read_only=True, default=None)
+
     class Meta:
         model = Message
-        fields = ["id", "sender_kind", "sender", "sender_listener_uuid", "body", "created_at"]
+        fields = ["id", "channel", "sender_kind", "sender", "sender_name", "body", "created_at"]
         read_only_fields = fields
 
 
 class MessageCreateSerializer(serializers.Serializer):
-    """listener_uuid is only required for anonymous (listener) senders -
-    IsSessionParticipant has already checked it by the time this parses,
-    so this just needs to accept it, not re-derive the sender's identity.
-    """
-
     body = serializers.CharField(max_length=2000, allow_blank=False)
-    listener_uuid = serializers.UUIDField(required=False)
 
 
 class SessionCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200)
+    description = serializers.CharField(
+        max_length=2000, required=False, allow_blank=True, default=""
+    )
     source_language = serializers.CharField(max_length=10)
     target_languages = serializers.ListField(
         child=serializers.CharField(max_length=10), allow_empty=False

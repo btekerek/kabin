@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/password_field.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../state/auth_providers.dart';
 
-/// Reached from the account dropdown on HomeScreen. Shows the avatar and
-/// a change-password form - both UI shells only for now. Neither the
-/// avatar upload nor the password change actually calls a backend
-/// endpoint yet (there isn't one), so both actions surface a "coming
-/// soon" notice instead of silently doing nothing or pretending to
-/// succeed.
+/// Reached from the account dropdown on HomeScreen. Shows the avatar, a
+/// change-username form, and a change-password form. The password form
+/// is still a UI shell (no backend endpoint yet), so it surfaces a
+/// "coming soon" notice; the username form is fully wired to
+/// AuthController.updateUsername().
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -20,16 +20,29 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _passwordFormKey = GlobalKey<FormState>();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  final _usernameFormKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  bool _updatingUsername = false;
+  String? _usernameError;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.text =
+        ref.read(authControllerProvider).valueOrNull?.username ?? '';
+  }
 
   @override
   void dispose() {
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -40,15 +53,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _submitPasswordChange() {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_passwordFormKey.currentState!.validate()) return;
     _comingSoon();
+  }
+
+  Future<void> _submitUsernameChange() async {
+    if (!_usernameFormKey.currentState!.validate()) return;
+    setState(() {
+      _updatingUsername = true;
+      _usernameError = null;
+    });
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .updateUsername(_usernameController.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Username updated.')),
+        );
+      }
+    } catch (error) {
+      setState(() => _usernameError = apiErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => _updatingUsername = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final email = ref.watch(authControllerProvider).valueOrNull?.email;
-    final initial =
-        (email != null && email.isNotEmpty) ? email[0].toUpperCase() : '?';
+    final user = ref.watch(authControllerProvider).valueOrNull;
+    final username = user?.username;
+    final initial = (username != null && username.isNotEmpty)
+        ? username[0].toUpperCase()
+        : '?';
 
     return Scaffold(
       appBar: AppBar(
@@ -97,9 +134,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      if (email != null)
-                        Text(email,
+                      if (user?.email != null)
+                        Text(user!.email,
                             style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Text('USERNAME',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline)),
+                const SizedBox(height: 12),
+                Form(
+                  key: _usernameFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Username'),
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                                ? 'Username is required'
+                                : null,
+                      ),
+                      if (_usernameError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _usernameError!,
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed:
+                            _updatingUsername ? null : _submitUsernameChange,
+                        child: _updatingUsername
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('SAVE USERNAME'),
+                      ),
                     ],
                   ),
                 ),
@@ -109,7 +189,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         color: Theme.of(context).colorScheme.outline)),
                 const SizedBox(height: 12),
                 Form(
-                  key: _formKey,
+                  key: _passwordFormKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

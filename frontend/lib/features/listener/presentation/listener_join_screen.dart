@@ -66,8 +66,11 @@ class _ListenerJoinScreenState extends ConsumerState<ListenerJoinScreen> {
         '/listen',
         extra: ListeningArgs(
           joinResult: result,
-          channelLanguage: channel.language,
+          sessionId: _session!.id,
+          channelId: channel.id,
+          channels: _session!.channels,
           sessionName: _session!.name,
+          listenerUuid: listenerUuid,
         ),
       );
     } catch (error) {

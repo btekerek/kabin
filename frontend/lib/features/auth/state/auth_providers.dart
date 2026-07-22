@@ -67,11 +67,13 @@ class AuthController extends AsyncNotifier<User?> {
     }
   }
 
-  Future<void> login({required String email, required String password}) async {
+  /// [identifier] is either the account's email or username.
+  Future<void> login(
+      {required String identifier, required String password}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final tokens = await ref.read(authRepositoryProvider).login(
-            email: email,
+            identifier: identifier,
             password: password,
           );
       ref.read(authSessionProvider).updateTokens(tokens);
@@ -82,18 +84,55 @@ class AuthController extends AsyncNotifier<User?> {
   /// There's no role to pick at registration - see HomeScreen for how
   /// an account becomes a "guide" (creates a session) or "interpreter"
   /// (claims a channel) per action instead.
+  ///
+  /// Doesn't log the account in - it's inactive until verifyEmail
+  /// succeeds (see RegisterView) - so like updateUsername, this throws
+  /// on failure rather than going through AsyncValue.guard: the shared
+  /// logged-in/out state shouldn't move either way over a registration
+  /// attempt, since the account isn't usable yet regardless of outcome.
+  /// RegisterScreen shows its own local busy/error state around this.
   Future<void> register({
     required String email,
     required String password,
-  }) async {
+    required String username,
+  }) {
+    return ref.read(authRepositoryProvider).register(
+          email: email,
+          password: password,
+          username: username,
+        );
+  }
+
+  /// Confirms the emailed code and logs the now-active account in
+  /// directly - verifyEmail's response is a token pair, exactly like
+  /// login's, so this mirrors login() rather than register().
+  Future<void> verifyEmail(
+      {required String email, required String code}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final repository = ref.read(authRepositoryProvider);
-      await repository.register(email: email, password: password);
-      final tokens = await repository.login(email: email, password: password);
+      final tokens = await ref
+          .read(authRepositoryProvider)
+          .verifyEmail(email: email, code: code);
       ref.read(authSessionProvider).updateTokens(tokens);
-      return repository.me();
+      return ref.read(authRepositoryProvider).me();
     });
+  }
+
+  /// Fire-and-forget "send me another code" - throws on failure like
+  /// register()/updateUsername() so VerifyEmailScreen can show it
+  /// locally without disturbing the shared logged-out state.
+  Future<void> resendVerification(String email) {
+    return ref.read(authRepositoryProvider).resendVerification(email);
+  }
+
+  /// Throws on failure (e.g. USERNAME_IN_USE) rather than going through
+  /// AsyncValue.guard like login/register - the caller (ProfileScreen)
+  /// shows that error locally, and the shared auth state shouldn't flip
+  /// to AsyncError over a rejected edit while already logged in.
+  Future<void> updateUsername(String username) async {
+    final updated =
+        await ref.read(authRepositoryProvider).updateUsername(username);
+    state = AsyncData(updated);
   }
 
   Future<void> logout() async {

@@ -6,6 +6,7 @@ import 'package:kabin/core/auth/token_pair.dart';
 import 'package:kabin/features/auth/data/auth_repository.dart';
 import 'package:kabin/features/auth/domain/user.dart';
 import 'package:kabin/features/chat/data/chat_repository.dart';
+import 'package:kabin/features/chat/domain/chat_target.dart';
 import 'package:kabin/features/chat/domain/message.dart';
 import 'package:kabin/features/sessions/data/session_repository.dart';
 import 'package:kabin/features/sessions/domain/language.dart';
@@ -49,7 +50,7 @@ class FakeAuthRepository extends AuthRepository {
 
   @override
   Future<TokenPair> login(
-      {required String email, required String password}) async {
+      {required String identifier, required String password}) async {
     if (loginError != null) throw loginError!;
     return loginTokens!;
   }
@@ -58,6 +59,7 @@ class FakeAuthRepository extends AuthRepository {
   Future<User> register({
     required String email,
     required String password,
+    required String username,
   }) async {
     registerCalled = true;
     return userToReturn!;
@@ -88,6 +90,7 @@ class FakeSessionRepository extends SessionRepository {
   @override
   Future<Session> createSession({
     required String name,
+    String description = '',
     required String sourceLanguage,
     required List<String> targetLanguages,
   }) async {
@@ -156,18 +159,14 @@ class FakeChatRepository extends ChatRepository {
 
   @override
   Future<List<ChatMessage>> history(
-    int sessionId, {
+    ChatTarget target, {
     int? beforeId,
     int limit = 50,
   }) async =>
       historyToReturn;
 
   @override
-  Future<ChatMessage> send({
-    required int sessionId,
-    required String body,
-    String? listenerUuid,
-  }) {
+  Future<ChatMessage> send({required ChatTarget target, required String body}) {
     sentBodies.add(body);
     if (sendCompleter != null) return sendCompleter!.future;
     if (nextSendError != null) {

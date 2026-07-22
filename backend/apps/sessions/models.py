@@ -21,6 +21,7 @@ class Session(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sessions"
     )
     name = models.CharField(max_length=200)
+    description = models.TextField(max_length=2000, blank=True, default="")
     source_language = models.CharField(max_length=10)
     listener_code = models.CharField(max_length=20, unique=True, db_index=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_STARTED)
@@ -87,41 +88,49 @@ class ListenerSession(models.Model):
 
 
 class ChannelInterpreter(models.Model):
-    """The interpreter currently broadcasting into a channel (see ADR-003).
-
-    `channel` is a OneToOneField, not a ForeignKey: exactly one
-    interpreter may hold a channel at a time. Claiming/releasing is
-    handled in the join/leave views, not here.
-    """
-
-    channel = models.OneToOneField(
-        Channel, on_delete=models.CASCADE, related_name="interpreter_claim"
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="interpreter_claims"
     )
     interpreter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="channel_claims"
     )
     joined_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "interpreter"], name="unique_interpreter_claim_per_channel"
+            )
+        ]
+
     def __str__(self):
         return f"{self.interpreter} on {self.channel}"
 
 
 class Message(models.Model):
-    """A single chat message (see ADR-005).
+    """A single chat message. Listeners are never chat participants -
+    only the guide (session owner) and interpreters (ChannelInterpreter
+    claim holders) can send/read.
 
-    `sender_kind` discriminates which of `sender` (guide/interpreter,
-    a real User) or `sender_listener_uuid` (listener, anonymous) is
-    populated - exactly one of the two, matching whichever identity
-    model that sender kind uses everywhere else in this app.
+    `channel` is null for a "general" message (guide + every interpreter
+    in the session) or set for a message scoped to one channel (only the
+    interpreter(s) holding a claim on that channel - not the guide, not
+    interpreters on other channels). This lets interpreters sharing a
+    channel coordinate privately alongside the session-wide general chat.
     """
 
     class SenderKind(models.TextChoices):
         GUIDE = "guide", "Guide"
         INTERPRETER = "interpreter", "Interpreter"
-        LISTENER = "listener", "Listener"
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="messages")
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, null=True, blank=True, related_name="messages"
+    )
     sender_kind = models.CharField(max_length=20, choices=SenderKind.choices)
+    # Nullable at the DB level only to avoid a NOT NULL migration against
+    # any pre-existing rows - every message created from here on always
+    # sets it, since listeners can no longer send at all.
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -129,7 +138,6 @@ class Message(models.Model):
         blank=True,
         related_name="sent_messages",
     )
-    sender_listener_uuid = models.UUIDField(null=True, blank=True)
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -137,4 +145,5 @@ class Message(models.Model):
         ordering = ["created_at", "id"]
 
     def __str__(self):
-        return f"{self.sender_kind} message in {self.session_id}"
+        scope = f"channel {self.channel_id}" if self.channel_id else "general"
+        return f"{self.sender_kind} message ({scope}) in session {self.session_id}"

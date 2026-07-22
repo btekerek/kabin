@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/errors/api_error_message.dart';
@@ -11,6 +10,7 @@ import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
+import '../../chat/presentation/chat_fab.dart';
 import '../domain/channel.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
@@ -37,19 +37,12 @@ class SessionDashboardScreen extends ConsumerWidget {
       ),
       floatingActionButton: session == null
           ? null
-          : FloatingActionButton(
-              tooltip: 'Chat',
-              onPressed: () => context.push(
-                '/chat',
-                extra: ChatArgs(
-                  sessionId: session.id,
-                  socketQueryParams: {
-                    'token': ref.read(authSessionProvider).accessToken ?? '',
-                  },
-                  title: 'Chat - ${session.name}',
-                ),
+          : ChatFab(
+              args: ChatArgs(
+                sessionId: session.id,
+                accessToken: ref.read(authSessionProvider).accessToken ?? '',
+                title: 'Chat - ${session.name}',
               ),
-              child: const Icon(Icons.chat_bubble_outline),
             ),
     );
   }
@@ -74,7 +67,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
   /// sequence is running - disables the toggle so it can't be double-hit.
   bool _togglingSession = false;
 
-  bool _muted = false;
+  bool _muted = true;
   Object? _micError;
 
   @override
@@ -128,7 +121,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
     setState(() => _togglingSession = true);
     try {
       await _micController.leave();
-      if (mounted) setState(() => _muted = false);
+      if (mounted) setState(() => _muted = true);
       await ref.read(sessionDetailProvider(widget.session.id).notifier).stop();
     } finally {
       if (mounted) setState(() => _togglingSession = false);
@@ -144,7 +137,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
         // Ending the session should proceed even if hanging up the mic
         // failed - there's nothing left to serve it anyway.
       }
-      if (mounted) setState(() => _muted = false);
+      if (mounted) setState(() => _muted = true);
       await ref.read(sessionDetailProvider(widget.session.id).notifier).end();
     } finally {
       if (mounted) setState(() => _togglingSession = false);
@@ -189,6 +182,11 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(session.name, style: Theme.of(context).textTheme.headlineSmall),
+          if (session.description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(session.description,
+                style: Theme.of(context).textTheme.bodyMedium),
+          ],
           const SizedBox(height: 16),
           _SessionCard(
             sourceLanguage: session.sourceLanguage,

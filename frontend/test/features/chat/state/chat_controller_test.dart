@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kabin/features/chat/domain/chat_target.dart';
 import 'package:kabin/features/chat/domain/message.dart';
 import 'package:kabin/features/chat/state/chat_controller.dart';
 
@@ -8,9 +9,10 @@ import '../../../helpers/fake_repositories.dart';
 
 ChatMessage _message({required int id, String body = 'hi'}) => ChatMessage(
       id: id,
+      channelId: null,
       senderKind: SenderKind.guide,
       senderId: 1,
-      senderListenerUuid: null,
+      senderName: 'Guide Person',
       body: body,
       createdAt: DateTime.parse('2026-07-17T12:00:00Z'),
     );
@@ -21,7 +23,8 @@ void main() {
 
   setUp(() {
     repository = FakeChatRepository();
-    controller = ChatController(repository: repository, sessionId: 1);
+    controller = ChatController(
+        repository: repository, target: const ChatTarget.general(1));
   });
 
   tearDown(() => controller.dispose());

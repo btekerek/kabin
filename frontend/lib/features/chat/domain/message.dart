@@ -1,4 +1,4 @@
-enum SenderKind { guide, interpreter, listener }
+enum SenderKind { guide, interpreter }
 
 SenderKind senderKindFromJson(String value) {
   switch (value) {
@@ -6,41 +6,39 @@ SenderKind senderKindFromJson(String value) {
       return SenderKind.guide;
     case 'interpreter':
       return SenderKind.interpreter;
-    case 'listener':
-      return SenderKind.listener;
     default:
       throw ArgumentError('Unknown sender_kind: $value');
   }
 }
 
-/// One chat message (see MessageSerializer). The backend doesn't expose
-/// a sender display name yet - only `sender_kind` plus a raw user id or
-/// listener uuid - so the UI can only label a message "Guide" /
-/// "Interpreter" / "Listener", not by name. Multiple interpreters in one
-/// session will all show under the same generic label until the backend
-/// adds a display name field.
+/// One chat message (see MessageSerializer). `channelId` is null for a
+/// general message (guide + every interpreter in the session) or set
+/// for one scoped to a single channel - see ChatTarget.
 class ChatMessage {
   const ChatMessage({
     required this.id,
+    required this.channelId,
     required this.senderKind,
     required this.senderId,
-    required this.senderListenerUuid,
+    required this.senderName,
     required this.body,
     required this.createdAt,
   });
 
   final int id;
+  final int? channelId;
   final SenderKind senderKind;
   final int? senderId;
-  final String? senderListenerUuid;
+  final String? senderName;
   final String body;
   final DateTime createdAt;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         id: json['id'] as int,
+        channelId: json['channel'] as int?,
         senderKind: senderKindFromJson(json['sender_kind'] as String),
         senderId: json['sender'] as int?,
-        senderListenerUuid: json['sender_listener_uuid'] as String?,
+        senderName: json['sender_name'] as String?,
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
       );

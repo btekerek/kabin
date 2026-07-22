@@ -17,12 +17,17 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+
+  bool _submitting = false;
+  Object? _submitError;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     super.dispose();
@@ -30,16 +35,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authControllerProvider.notifier).register(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
+    final email = _emailController.text.trim();
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).register(
+            email: email,
+            password: _passwordController.text,
+            username: _usernameController.text.trim(),
+          );
+      if (mounted) context.pushReplacement('/verify-email', extra: email);
+    } catch (error) {
+      setState(() => _submitError = error);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
-
     return Scaffold(
       appBar: AppBar(title: const KabinAppBarTitle('Create an account')),
       body: LayoutBuilder(
@@ -68,6 +84,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             : null,
                       ),
                       const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _usernameController,
+                        autofillHints: const [AutofillHints.newUsername],
+                        decoration: const InputDecoration(
+                            labelText: 'Username (optional)'),
+                      ),
+                      const SizedBox(height: 16),
                       PasswordField(
                         controller: _passwordController,
                         labelText: 'Password',
@@ -85,10 +108,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             : null,
                         onFieldSubmitted: (_) => _submit(),
                       ),
-                      if (authState.hasError) ...[
+                      if (_submitError != null) ...[
                         const SizedBox(height: 16),
                         Text(
-                          apiErrorMessage(authState.error as Object),
+                          apiErrorMessage(_submitError!),
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error),
                           textAlign: TextAlign.center,
@@ -96,8 +119,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ],
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: authState.isLoading ? null : _submit,
-                        child: authState.isLoading
+                        onPressed: _submitting ? null : _submit,
+                        child: _submitting
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,

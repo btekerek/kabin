@@ -133,6 +133,10 @@ REST_FRAMEWORK = {
         # this is the one public, unauthenticated lookup surface, so it
         # gets its own rate limit. See ADR-002.
         "session-lookup": "20/min",
+        # A 6-digit code is brute-forceable given enough attempts - this
+        # doesn't make it un-guessable, just slow enough that the email's
+        # TTL (EMAIL_VERIFICATION_TTL_MINUTES) runs out first.
+        "email-verification": "20/min",
     },
 }
 
@@ -167,6 +171,18 @@ else:
 AGORA_APP_ID = os.environ.get("AGORA_APP_ID", "")
 AGORA_APP_CERTIFICATE = os.environ.get("AGORA_APP_CERTIFICATE", "")
 AGORA_TOKEN_TTL_SECONDS = int(os.environ.get("AGORA_TOKEN_TTL_SECONDS", "3600"))
+
+# SMTP only - no console-backend fallback, so a misconfigured .env fails
+# loud (a connection error) rather than silently "sending" mail that only
+# ever shows up in a server log nobody's watching.
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+EMAIL_VERIFICATION_TTL_MINUTES = int(os.environ.get("EMAIL_VERIFICATION_TTL_MINUTES", "15"))
 
 SESSION_LISTENER_CAP_DEFAULT = int(os.environ.get("SESSION_LISTENER_CAP_DEFAULT", "500"))
 

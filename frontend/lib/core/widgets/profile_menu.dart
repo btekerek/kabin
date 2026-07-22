@@ -11,9 +11,10 @@ class ProfileMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final email = ref.watch(authControllerProvider).valueOrNull?.email;
-    final initial =
-        (email != null && email.isNotEmpty) ? email[0].toUpperCase() : '?';
+    final username = ref.watch(authControllerProvider).valueOrNull?.username;
+    final initial = (username != null && username.isNotEmpty)
+        ? username[0].toUpperCase()
+        : '?';
 
     return PopupMenuButton<_ProfileAction>(
       tooltip: 'Account',
@@ -52,12 +53,12 @@ class ProfileMenu extends ConsumerWidget {
               radius: 14,
               child: Text(initial, style: const TextStyle(fontSize: 13)),
             ),
-            if (email != null) ...[
+            if (username != null) ...[
               const SizedBox(width: 8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 110),
-                child:
-                    Text(email, overflow: TextOverflow.ellipsis, maxLines: 1),
+                child: Text(username,
+                    overflow: TextOverflow.ellipsis, maxLines: 1),
               ),
             ],
             const Icon(Icons.arrow_drop_down),

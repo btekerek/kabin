@@ -37,7 +37,7 @@ from apps.sessions.models import (
     Message,
     Session,
 )
-from apps.sessions.permissions import IsSessionOwner, IsSessionParticipant
+from apps.sessions.permissions import IsChannelInterpreter, IsSessionOwner, IsSessionStaff
 from apps.sessions.serializers import (
     ChannelSerializer,
     InterpreterCodeSerializer,
@@ -73,6 +73,7 @@ class SessionListCreateView(generics.ListCreateAPIView):
             session = Session.objects.create(
                 owner=request.user,
                 name=data["name"],
+                description=data["description"],
                 source_language=data["source_language"],
                 listener_code=generate_listener_code(),
             )
@@ -132,7 +133,18 @@ class _SessionTransitionView(APIView):
         return Response(SessionSerializer(session).data)
 
     def after_transition(self, session):
-        """Hook for subclasses with side effects beyond the status change."""
+        """Pushes the new status to every channel's mic-presence group
+        instantly - interpreters may have joined a channel before the
+        guide started the session, and BroadcastingScreen's mic gate
+        (only broadcast while active) needs to unlock the moment it
+        does, not on the next poll.
+        """
+        channel_layer = get_channel_layer()
+        for channel_id in session.channels.values_list("id", flat=True):
+            async_to_sync(channel_layer.group_send)(
+                f"channel-{channel_id}-mic",
+                {"type": "session_status", "status": session.status},
+            )
 
 
 class SessionBroadcastView(APIView):
@@ -267,20 +279,55 @@ class SessionJoinView(APIView):
         )
 
 
-class ChannelJoinView(APIView):
-    """Authenticated (Interpreter role): code -> claim channel + publisher token.
+def _relay_payload(relay_channel):
+    return {
+        "agora_app_id": settings.AGORA_APP_ID,
+        "agora_channel_name": relay_channel.agora_channel_name,
+        "agora_token": build_listener_token(relay_channel.agora_channel_name),
+        "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+        "channel": ListenerChannelSerializer(relay_channel).data,
+    }
 
-    Claim semantics (see ADR-003): free -> claim it; already yours ->
-    refresh (reconnect case); someone else's -> CHANNEL_ALREADY_STAFFED.
 
-    Also returns a `source` relay: a listener-role token for the
-    session's source channel, so one claim gives the interpreter
-    everything needed both to hear the Guide (source) and broadcast
-    their interpretation (their own channel) at the same time. `source`
-    is null if the claimed channel *is* the source channel itself - an
-    interpreter can't relay a channel to itself.
+def _default_relay(channel):
+    if channel.is_source:
+        return None
+    source_channel = Channel.objects.get(session=channel.session, is_source=True)
+    return _relay_payload(source_channel)
+
+
+def _available_relay_channels(channel):
+    if channel.is_source:
+        return []
+    others = Channel.objects.filter(session=channel.session).exclude(pk=channel.pk)
+    return ListenerChannelSerializer(others, many=True).data
+
+
+def _available_target_channels(session):
+    targets = Channel.objects.filter(session=session, is_source=False)
+    return ListenerChannelSerializer(targets, many=True).data
+
+
+def _claim_payload(channel):
+    """Shared response shape for ChannelJoinView and ChannelSwitchView -
+    publish credentials for [channel] plus everything the interpreter's
+    two dropdowns (target language, relay/source language) need to
+    render themselves.
     """
+    token = build_interpreter_token(channel.agora_channel_name)
+    return {
+        "agora_app_id": settings.AGORA_APP_ID,
+        "agora_channel_name": channel.agora_channel_name,
+        "agora_token": token,
+        "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
+        "channel": ChannelSerializer(channel).data,
+        "relay": _default_relay(channel),
+        "available_relay_channels": _available_relay_channels(channel),
+        "available_target_channels": _available_target_channels(channel.session),
+    }
 
+
+class ChannelJoinView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -306,39 +353,82 @@ class ChannelJoinView(APIView):
             )
 
         with transaction.atomic():
-            claim, created = ChannelInterpreter.objects.select_for_update().get_or_create(
-                channel=channel, defaults={"interpreter": request.user}
+            ChannelInterpreter.objects.select_for_update().get_or_create(
+                channel=channel, interpreter=request.user
             )
-            if not created and claim.interpreter_id != request.user.id:
-                raise KabinAPIException(
-                    code="CHANNEL_ALREADY_STAFFED",
-                    message="Another interpreter is already broadcasting on this channel.",
-                    status_code=409,
-                )
 
-        token = build_interpreter_token(channel.agora_channel_name)
-        return Response(
-            {
-                "agora_app_id": settings.AGORA_APP_ID,
-                "agora_channel_name": channel.agora_channel_name,
-                "agora_token": token,
-                "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
-                "channel": ChannelSerializer(channel).data,
-                "source": self._source_relay(channel),
-            }
+        return Response(_claim_payload(channel))
+
+
+class ChannelRelayView(APIView):
+    """Lets an interpreter switch which channel they're relaying from
+    (listening to while they interpret) at any time - not just the
+    session's original source. Supports pivot setups where one
+    interpreter relays from another channel's translation instead of
+    the original audio.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def post(self, request, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(request, channel)
+
+        relay_channel = get_object_or_404(
+            Channel, pk=request.data.get("relay_channel_id"), session=channel.session
         )
+        if relay_channel.id == channel.id:
+            raise KabinAPIException(
+                code="INVALID_RELAY_CHANNEL",
+                message="Can't relay from your own channel.",
+                status_code=400,
+            )
 
-    def _source_relay(self, channel):
-        if channel.is_source:
-            return None
-        source_channel = Channel.objects.get(session=channel.session, is_source=True)
-        return {
-            "agora_app_id": settings.AGORA_APP_ID,
-            "agora_channel_name": source_channel.agora_channel_name,
-            "agora_token": build_listener_token(source_channel.agora_channel_name),
-            "expires_in": settings.AGORA_TOKEN_TTL_SECONDS,
-            "channel": ListenerChannelSerializer(source_channel).data,
-        }
+        return Response(_relay_payload(relay_channel))
+
+
+class ChannelSwitchView(APIView):
+    """Lets an interpreter move their own claim to a different (target,
+    non-source) channel in the same session, without leaving/rejoining
+    by code - e.g. picking a different language to translate into.
+    Multiple interpreters may already share one channel (see
+    ChannelInterpreter), so this never has to resolve a staffing
+    conflict - it's just "drop my claim here, pick it up there."
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def post(self, request, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(request, channel)
+
+        if channel.session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended.",
+                status_code=400,
+            )
+
+        target_channel = get_object_or_404(
+            Channel,
+            pk=request.data.get("target_channel_id"),
+            session=channel.session,
+            is_source=False,
+        )
+        if target_channel.id == channel.id:
+            raise KabinAPIException(
+                code="INVALID_TARGET_CHANNEL",
+                message="Already on that channel.",
+                status_code=400,
+            )
+
+        with transaction.atomic():
+            ChannelInterpreter.objects.filter(channel=channel, interpreter=request.user).delete()
+            ChannelInterpreter.objects.select_for_update().get_or_create(
+                channel=target_channel, interpreter=request.user
+            )
+
+        return Response(_claim_payload(target_channel))
 
 
 class ChannelLeaveView(APIView):
@@ -374,64 +464,39 @@ class SessionEndView(_SessionTransitionView):
     target_status = Session.Status.ENDED
 
 
-class MessageListCreateView(APIView):
-    """Chat: anyone actually in the session (see IsSessionParticipant) can
-    read history and send. REST is the only write path - sending a
-    message here also pushes it to the "session-<id>-chat" channel-layer
-    group so connected WebSocket clients receive it immediately. See
-    ADR-005 for why the socket itself never accepts client-sent messages.
-
-    permission_classes is AllowAny, not [IsSessionParticipant], and the
-    participant check is called directly below instead of through
-    check_object_permissions. Reason: DRF's permission_denied() turns a
-    failed object permission into 401 (not 403) whenever no authenticator
-    succeeded - which is every anonymous listener request, since none of
-    them present a JWT. Every other listener-facing endpoint in this app
-    sidesteps that DRF quirk by using AllowAny + an explicit
-    KabinAPIException; this one reuses the same IsSessionParticipant
-    logic as a plain function call so the 403 stays a real 403.
+class _BaseMessageView(APIView):
+    """Shared history pagination for both chat scopes below - see
+    MessageListCreateView (general) and ChannelMessageListCreateView
+    (per-channel).
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     DEFAULT_PAGE_SIZE = 50
     MAX_PAGE_SIZE = 200
 
-    def _get_session(self, request, pk):
-        session = get_object_or_404(Session, pk=pk)
-        if not IsSessionParticipant().has_object_permission(request, self, session):
-            raise KabinAPIException(
-                code="NOT_A_PARTICIPANT",
-                message="You are not part of this session.",
-                status_code=403,
-            )
-        return session
-
-    def get(self, request, pk):
+    def _paginated(self, request, queryset):
         """Returns the most recent `limit` messages (default/max: 50/200),
-        chronological ascending same as before pagination existed. Pass
-        `before_id` (a message id already seen) to page further back in
-        time - the response is the `limit` messages immediately before
-        that one, still chronological ascending.
+        chronological ascending. Pass `before_id` (a message id already
+        seen) to page further back in time - the response is the `limit`
+        messages immediately before that one, still chronological
+        ascending.
 
         Without `before_id` this is "the tail of the conversation," not
         an offset - so it stays correct even if new messages arrive
         between page requests, unlike a page-number scheme would.
         """
-        session = self._get_session(request, pk)
         limit = self._parse_limit(request.query_params.get("limit"))
-
-        queryset = Message.objects.filter(session=session).order_by("-created_at", "-id")
 
         before_id = request.query_params.get("before_id")
         if before_id is not None:
-            cursor = get_object_or_404(Message, pk=before_id, session=session)
+            cursor = get_object_or_404(queryset, pk=before_id)
             queryset = queryset.filter(
                 Q(created_at__lt=cursor.created_at)
                 | Q(created_at=cursor.created_at, id__lt=cursor.id)
             )
 
-        page = list(queryset[:limit])
+        page = list(queryset.order_by("-created_at", "-id")[:limit])
         page.reverse()
         return Response(MessageSerializer(page, many=True).data)
 
@@ -442,8 +507,30 @@ class MessageListCreateView(APIView):
             return self.DEFAULT_PAGE_SIZE
         return max(1, min(limit, self.MAX_PAGE_SIZE))
 
+
+class MessageListCreateView(_BaseMessageView):
+    """General chat: guide + every interpreter in the session (see
+    IsSessionStaff) - listeners never have chat access. REST is the only
+    write path - sending a message here also pushes it to the
+    "session-<id>-chat" channel-layer group so connected WebSocket
+    clients receive it immediately.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsSessionStaff]
+
+    def _get_session(self, pk):
+        session = get_object_or_404(Session, pk=pk)
+        self.check_object_permissions(self.request, session)
+        return session
+
+    def get(self, request, pk):
+        session = self._get_session(pk)
+        return self._paginated(
+            request, Message.objects.filter(session=session, channel__isnull=True)
+        )
+
     def post(self, request, pk):
-        session = self._get_session(request, pk)
+        session = self._get_session(pk)
 
         if session.status == Session.Status.ENDED:
             raise KabinAPIException(
@@ -454,34 +541,70 @@ class MessageListCreateView(APIView):
 
         input_serializer = MessageCreateSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
-        body = input_serializer.validated_data["body"]
 
-        user = request.user
-        if user and user.is_authenticated:
-            # Guide-ness is ownership, not an account role - see
-            # permissions.py module docstring. A user who reaches here
-            # authenticated but isn't the owner must hold an interpreter
-            # claim instead, since _get_session already enforced
-            # IsSessionParticipant above.
-            sender_kind = (
-                Message.SenderKind.GUIDE
-                if session.owner_id == user.id
-                else Message.SenderKind.INTERPRETER
-            )
-            message = Message.objects.create(
-                session=session, sender_kind=sender_kind, sender=user, body=body
-            )
-        else:
-            message = Message.objects.create(
-                session=session,
-                sender_kind=Message.SenderKind.LISTENER,
-                sender_listener_uuid=input_serializer.validated_data["listener_uuid"],
-                body=body,
-            )
+        sender_kind = (
+            Message.SenderKind.GUIDE
+            if session.owner_id == request.user.id
+            else Message.SenderKind.INTERPRETER
+        )
+        message = Message.objects.create(
+            session=session,
+            sender_kind=sender_kind,
+            sender=request.user,
+            body=input_serializer.validated_data["body"],
+        )
 
         payload = MessageSerializer(message).data
         async_to_sync(get_channel_layer().group_send)(
             f"session-{session.id}-chat",
+            {"type": "chat.message", "message": payload},
+        )
+
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class ChannelMessageListCreateView(_BaseMessageView):
+    """Per-channel chat: only the interpreter(s) holding a claim on this
+    channel (see IsChannelInterpreter) - not the guide, not interpreters
+    on other channels. Lets interpreters sharing a channel coordinate
+    privately alongside the session-wide general chat.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsChannelInterpreter]
+
+    def _get_channel(self, pk):
+        channel = get_object_or_404(Channel, pk=pk)
+        self.check_object_permissions(self.request, channel)
+        return channel
+
+    def get(self, request, pk):
+        channel = self._get_channel(pk)
+        return self._paginated(request, Message.objects.filter(channel=channel))
+
+    def post(self, request, pk):
+        channel = self._get_channel(pk)
+
+        if channel.session.status == Session.Status.ENDED:
+            raise KabinAPIException(
+                code="SESSION_ENDED",
+                message="This session has ended.",
+                status_code=400,
+            )
+
+        input_serializer = MessageCreateSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        message = Message.objects.create(
+            session=channel.session,
+            channel=channel,
+            sender_kind=Message.SenderKind.INTERPRETER,
+            sender=request.user,
+            body=input_serializer.validated_data["body"],
+        )
+
+        payload = MessageSerializer(message).data
+        async_to_sync(get_channel_layer().group_send)(
+            f"channel-{channel.id}-chat",
             {"type": "chat.message", "message": payload},
         )
 

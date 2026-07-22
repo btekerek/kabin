@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../data/chat_repository.dart';
 import '../data/chat_socket.dart';
+import '../domain/chat_target.dart';
 import '../domain/message.dart';
 
 /// A message this screen just tried to send, before (or instead of) it's
@@ -10,27 +11,22 @@ import '../domain/message.dart';
 /// offer retry/dismiss rather than silently dropping it - the user
 /// shouldn't have to retype a message that failed to send.
 class PendingMessage {
-  PendingMessage(
-      {required this.localId, required this.body, this.listenerUuid});
+  PendingMessage({required this.localId, required this.body});
 
   final int localId;
   final String body;
-  final String? listenerUuid;
   Object? error;
 }
 
 /// Combines the REST message history with the live WebSocket feed for
-/// one chat screen's lifetime. Deliberately a plain class rather than a
+/// one [ChatTarget]'s lifetime. Deliberately a plain class rather than a
 /// Riverpod AsyncNotifier - same reasoning as AgoraChannelController
 /// (see ListeningScreen/BroadcastingScreen): the underlying ChatSocket
 /// is a real connection tied 1:1 to a screen being open, created on
 /// entry and disposed on exit, not something Riverpod's provider
-/// lifecycle needs to own. A screen constructs one directly, calls
-/// [connect] from initState, and calls [dispose] from its own dispose.
-///
-/// Generic over [socketQueryParams] / a sender's `listenerUuid` so Guide
-/// and Interpreter screens both reuse this unchanged - only the auth
-/// mechanism differs between them (see ChatConsumer._authorize).
+/// lifecycle needs to own. A screen constructs one per scope it shows,
+/// calls [connect] from initState, and calls [dispose] from its own
+/// dispose.
 ///
 /// Confirmed messages are kept in a map keyed by server id, not a plain
 /// list, so a message can be upserted from either of two sources - the
@@ -39,11 +35,11 @@ class PendingMessage {
 /// message appears immediately (as soon as the REST call returns)
 /// instead of waiting on the round trip through the channel layer.
 class ChatController {
-  ChatController({required ChatRepository repository, required this.sessionId})
+  ChatController({required ChatRepository repository, required this.target})
       : _repository = repository;
 
   final ChatRepository _repository;
-  final int sessionId;
+  final ChatTarget target;
   final ChatSocket _socket = ChatSocket();
 
   final Map<int, ChatMessage> _byId = {};
@@ -71,13 +67,12 @@ class ChatController {
   bool get hasMoreHistory => _hasMoreHistory;
 
   /// Fetches the most recent page of history, then opens the live
-  /// socket. [socketQueryParams] is `{'token': accessToken}` for
-  /// guide/interpreter. Only the most recent [_pageSize] messages load
-  /// here - older ones are fetched on demand via [loadOlder], not all at
-  /// once, so opening a long-running session's chat doesn't mean
-  /// downloading its entire history up front.
-  Future<void> connect(Map<String, String> socketQueryParams) async {
-    final history = await _repository.history(sessionId, limit: _pageSize);
+  /// socket. Only the most recent [_pageSize] messages load here - older
+  /// ones are fetched on demand via [loadOlder], not all at once, so
+  /// opening a long-running session's chat doesn't mean downloading its
+  /// entire history up front.
+  Future<void> connect(String accessToken) async {
+    final history = await _repository.history(target, limit: _pageSize);
     _hasMoreHistory = history.length >= _pageSize;
     for (final message in history) {
       _byId[message.id] = message;
@@ -85,7 +80,7 @@ class ChatController {
     _messagesController.add(_sortedMessages());
 
     _socketSubscription = _socket.messages.listen(_upsert);
-    _socket.connect(sessionId: sessionId, queryParams: socketQueryParams);
+    _socket.connect(target: target, accessToken: accessToken);
   }
 
   /// Fetches the page immediately before the oldest message currently
@@ -100,7 +95,7 @@ class ChatController {
     _loadingOlder = true;
     try {
       final page = await _repository.history(
-        sessionId,
+        target,
         beforeId: sorted.first.id,
         limit: _pageSize,
       );
@@ -120,12 +115,8 @@ class ChatController {
   /// pending entry is cleared. On failure the pending entry stays,
   /// marked with [PendingMessage.error], so [retry] can resend the exact
   /// same body without the user retyping it.
-  Future<void> send({required String body, String? listenerUuid}) {
-    final pending = PendingMessage(
-      localId: _nextLocalId++,
-      body: body,
-      listenerUuid: listenerUuid,
-    );
+  Future<void> send({required String body}) {
+    final pending = PendingMessage(localId: _nextLocalId++, body: body);
     _pending.add(pending);
     _emitPending();
     return _attemptSend(pending);
@@ -144,11 +135,8 @@ class ChatController {
 
   Future<void> _attemptSend(PendingMessage pending) async {
     try {
-      final message = await _repository.send(
-        sessionId: sessionId,
-        body: pending.body,
-        listenerUuid: pending.listenerUuid,
-      );
+      final message =
+          await _repository.send(target: target, body: pending.body);
       _upsert(message);
       _pending.remove(pending);
       _emitPending();

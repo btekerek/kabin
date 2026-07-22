@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
@@ -97,9 +98,12 @@ class AgoraDualChannelController {
     // with ERR_INVALID_USER_ID (-121) - it needs an explicit non-zero uid
     // per connection. The backend's tokens are wildcard (uid 0 at
     // generation time), which is exactly what lets the client pick any
-    // real uid here and still validate.
-    final primaryConnection =
-        RtcConnection(channelId: primaryChannelName, localUid: 1);
+    // real uid here and still validate. Now that more than one
+    // interpreter can join the same target channel (see ADR-008), that
+    // uid has to be random rather than a fixed constant - two clients on
+    // the same channel with the same uid conflict.
+    final primaryConnection = RtcConnection(
+        channelId: primaryChannelName, localUid: _randomLocalUid());
     _primaryConnection = primaryConnection;
 
     await engineEx.joinChannelEx(
@@ -109,14 +113,19 @@ class AgoraDualChannelController {
         clientRoleType: ClientRoleType.clientRoleBroadcaster,
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
         publishMicrophoneTrack: true,
-        autoSubscribeAudio: true,
+        autoSubscribeAudio: false,
       ),
     );
+    // Joining publishes the mic track immediately - mute right away so
+    // an interpreter always starts silent and has to opt in to going
+    // live, rather than broadcasting the instant they connect.
+    await engineEx.muteLocalAudioStreamEx(
+        mute: true, connection: primaryConnection);
 
     if (secondaryChannelName != null && secondaryToken != null) {
       try {
-        final secondaryConnection =
-            RtcConnection(channelId: secondaryChannelName, localUid: 2);
+        final secondaryConnection = RtcConnection(
+            channelId: secondaryChannelName, localUid: _randomLocalUid());
         _secondaryConnection = secondaryConnection;
         await engineEx.joinChannelEx(
           token: secondaryToken,
@@ -188,6 +197,45 @@ class AgoraDualChannelController {
     }
   }
 
+  /// Leaves the current secondary (relay) connection, if any, and joins
+  /// a new one - the primary/broadcast connection is untouched, so this
+  /// lets an interpreter switch which channel they're relaying from
+  /// without dropping their own live mic.
+  Future<void> switchSecondary({
+    required String channelName,
+    required String token,
+  }) async {
+    final engine = _engine;
+    if (engine == null) return;
+    final engineEx = engine as RtcEngineEx;
+
+    final oldSecondary = _secondaryConnection;
+    _secondaryConnection = null;
+    if (oldSecondary != null) {
+      await engineEx.leaveChannelEx(connection: oldSecondary);
+    }
+
+    _setSecondaryStatus(AgoraConnectionStatus.connecting);
+    try {
+      final secondaryConnection =
+          RtcConnection(channelId: channelName, localUid: _randomLocalUid());
+      _secondaryConnection = secondaryConnection;
+      await engineEx.joinChannelEx(
+        token: token,
+        connection: secondaryConnection,
+        options: const ChannelMediaOptions(
+          clientRoleType: ClientRoleType.clientRoleAudience,
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+          publishMicrophoneTrack: false,
+          autoSubscribeAudio: true,
+        ),
+      );
+      _startConnectionStatePolling(engine);
+    } catch (_) {
+      _setSecondaryStatus(AgoraConnectionStatus.failed);
+    }
+  }
+
   /// Mutes/unmutes the interpreter's own mic (the primary/broadcast
   /// connection) - there's nothing to mute on the audience-only
   /// secondary connection.
@@ -241,4 +289,6 @@ class AgoraDualChannelController {
     _secondaryStatus = status;
     _secondaryStatusController.add(status);
   }
+
+  int _randomLocalUid() => Random().nextInt(0x7ffffffe) + 1;
 }
