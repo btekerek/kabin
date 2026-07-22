@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/content_column.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
@@ -19,7 +20,12 @@ class SessionListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const KabinAppBarTitle('Your sessions'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: sessionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

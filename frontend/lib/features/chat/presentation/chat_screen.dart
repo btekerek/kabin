@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../data/chat_socket.dart';
@@ -68,7 +69,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return Scaffold(
         appBar: AppBar(
           title: KabinAppBarTitle(widget.args.title),
-          actions: const [ProfileMenu(), SizedBox(width: 4)],
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
         ),
         body: _ChatPane(
             controller: _generalController, currentUserId: currentUserId),
@@ -80,7 +86,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: KabinAppBarTitle(widget.args.title),
-          actions: const [ProfileMenu(), SizedBox(width: 4)],
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
           bottom: const TabBar(
             tabs: [Tab(text: 'GENERAL'), Tab(text: 'CHANNEL')],
           ),

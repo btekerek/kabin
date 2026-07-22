@@ -8,6 +8,7 @@ import '../../../core/agora/agora_join_result.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/big_mic_button.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
@@ -249,7 +250,12 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: KabinAppBarTitle(_channel.language),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       floatingActionButton: ChatFab(
         args: ChatArgs(

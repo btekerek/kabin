@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../domain/language.dart';
 import '../state/session_providers.dart';
@@ -106,7 +107,12 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const KabinAppBarTitle('New session'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: languagesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
 import '../domain/interpreter_join_result.dart';
 import '../state/interpreter_providers.dart';
@@ -58,7 +59,12 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const KabinAppBarTitle('Join as interpreter'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
