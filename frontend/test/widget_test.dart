@@ -8,7 +8,7 @@ import 'package:kabin/main.dart';
 import 'helpers/fake_repositories.dart';
 
 void main() {
-  testWidgets('with no stored session, the app boots to the login screen',
+  testWidgets('with no stored session, the app boots to the landing screen',
       (tester) async {
     // Real network calls never reach a backend in this test - the fake
     // repository's default me() throws, which AuthController's
@@ -27,6 +27,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('LOG IN'), findsWidgets);
+    // Listen tab is shown first (see LandingScreen); Log in is the second
+    // tab. TabBar always builds both Tab labels regardless of which
+    // TabBarView page is currently active, so both are checkable here
+    // without switching tabs.
+    expect(find.text('Listen'), findsOneWidget);
+    expect(find.text('Log in'), findsOneWidget);
   });
 }

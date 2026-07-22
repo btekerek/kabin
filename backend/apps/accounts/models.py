@@ -55,3 +55,22 @@ class EmailVerificationCode(models.Model):
 
     def __str__(self):
         return f"verification code for {self.user_id}"
+
+
+class PasswordResetCode(models.Model):
+    """The one pending 6-digit code for a password-reset request.
+
+    Same shape as EmailVerificationCode above - `code` is overwritten in
+    place on each new request, so there's only ever one valid code per
+    user at a time. Created lazily on first request rather than
+    alongside every User, since most users never request one.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="password_reset"
+    )
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"password reset code for {self.user_id}"

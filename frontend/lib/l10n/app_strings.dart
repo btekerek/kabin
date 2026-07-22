@@ -58,8 +58,10 @@ class AppStrings {
   String get logIn => _pick('LOG IN', 'GİRİŞ YAP');
   String get noAccountRegisterPrompt =>
       _pick("Don't have an account? Register", 'Hesabın yok mu? Kayıt ol');
-  String get listenerJoinPrompt => _pick('Just here to listen? Join with a PIN',
-      'Sadece dinlemek mi istiyorsun? PIN ile katıl');
+
+  // Landing screen (listener-first tabs)
+  String get listenTabLabel => _pick('Listen', 'Dinle');
+  String get logInTabLabel => _pick('Log in', 'Giriş yap');
 
   // Register screen
   String get createAccountTitle => _pick('Create an account', 'Hesap oluştur');
