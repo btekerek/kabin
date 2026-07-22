@@ -207,6 +207,11 @@ def test_login_with_generated_username_works(api_client):
         "/api/auth/register/",
         {"email": "autogen@example.com", "password": "correct-horse-battery-staple"},
     )
+    # Registration leaves the account inactive until email verification
+    # (see RegisterSerializer.create) - this test is about the generated
+    # username, not that flow, so activate directly rather than round-
+    # tripping through /verify-email/.
+    User.objects.filter(email="autogen@example.com").update(is_active=True)
     response = api_client.post(
         "/api/auth/login/",
         {"identifier": "autogen", "password": "correct-horse-battery-staple"},

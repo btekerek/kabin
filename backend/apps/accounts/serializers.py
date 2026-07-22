@@ -67,7 +67,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         username = validated_data.get("username", "").strip()
         if not username:
             username = self._unique_username_from_email(email)
-        user = User(email=email, username=username)
+        # Inactive until the emailed code is confirmed (see
+        # EmailVerificationCode) - LoginSerializer already refuses
+        # is_active=False accounts, so there's no separate "verified"
+        # flag needed.
+        user = User(email=email, username=username, is_active=False)
         user.set_password(validated_data["password"])
         user.save()
         return user
@@ -110,6 +114,15 @@ class UserSerializer(serializers.ModelSerializer):
                 status_code=400,
             )
         return value
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
 
 class LoginSerializer(TokenObtainPairSerializer):

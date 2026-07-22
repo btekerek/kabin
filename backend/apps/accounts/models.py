@@ -23,6 +23,7 @@ sender's name instead of a generic "Guide"/"Interpreter" label or the
 user's email (see MessageSerializer.sender_name).
 """
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -32,3 +33,25 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class EmailVerificationCode(models.Model):
+    """The one pending 6-digit code for a not-yet-verified user.
+
+    Registration creates the user with is_active=False (the same flag
+    LoginSerializer already checks, so an unverified account simply can't
+    log in yet - no separate "verified" field needed) and one of these
+    rows alongside it. `code` is overwritten in place on resend, so
+    there's only ever one valid code per user at a time - same idea as
+    codes.py's short human-typeable codes, just scoped to one user
+    instead of needing global uniqueness.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="email_verification"
+    )
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"verification code for {self.user_id}"
