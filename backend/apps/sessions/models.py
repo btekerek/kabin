@@ -58,12 +58,12 @@ class Channel(models.Model):
 
     @property
     def agora_channel_name(self) -> str:
-        """Stable, opaque Agora channel identity - see ADR-002."""
+        """Stable, opaque Agora channel identity."""
         return f"kabin-ch-{self.id}"
 
 
 class ListenerSession(models.Model):
-    """One row per listener who has ever joined a session (see ADR-002).
+    """One row per listener who has ever joined a session.
 
     `channel` is which language they're currently listening to; joining
     again with the same `listener_uuid` updates this row rather than

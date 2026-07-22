@@ -24,8 +24,7 @@ import 'splash_screen.dart';
 
 /// A plain Provider that watches authControllerProvider and rebuilds
 /// the whole GoRouter on auth state changes (login/logout/bootstrap
-/// resolving) - see ADR-007 for why this simpler approach was chosen
-/// over a GoRouterRefreshStream bridge.
+/// resolving).
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authControllerProvider);
 

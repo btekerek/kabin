@@ -24,7 +24,7 @@ def _user_from_token(token):
     """Resolves the query-string `?token=` credential shared by every
     consumer below - auth travels in the URL, not a header, since
     neither browsers nor Flutter can attach custom headers to a
-    WebSocket handshake (see ADR-005).
+    WebSocket handshake.
     """
     if not token:
         return None
@@ -112,8 +112,8 @@ class ChannelChatConsumer(AsyncJsonWebsocketConsumer):
 
 
 class MicPresenceConsumer(AsyncJsonWebsocketConsumer):
-    """Relays "my mic is on/off" between interpreters sharing a channel
-    (see ADR-008) - purely a relay, no state kept server-side. A client
+    """Relays "my mic is on/off" between interpreters sharing a channel -
+    purely a relay, no state kept server-side. A client
     that just connected sends `status_request`; whoever's currently live
     replies with `mic_state` again so the newcomer catches up.
     Disconnecting always broadcasts `live: false` for that user, so a

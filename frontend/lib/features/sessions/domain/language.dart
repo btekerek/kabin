@@ -1,5 +1,5 @@
-/// One entry from the backend's language registry (see ADR-006 /
-/// GET /api/languages/) - the same list the backend validates
+/// One entry from the backend's language registry (GET /api/languages/) -
+/// the same list the backend validates
 /// source_language/target_languages against at session creation, so
 /// anything picked here is guaranteed to be accepted.
 class Language {

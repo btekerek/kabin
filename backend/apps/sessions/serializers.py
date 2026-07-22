@@ -22,11 +22,8 @@ class ChannelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Channel
-        # `session` (the owning session's id) is included so
-        # ChannelJoinView's response gives an interpreter enough to
-        # reach session-scoped endpoints (e.g. chat) - it never learns
-        # the session id any other way, since interpreters only ever
-        # identify themselves by channel code (see ADR-003).
+        # `session` is included so an interpreter can reach session-scoped
+        # endpoints like chat without a separate lookup.
         fields = ["id", "session", "session_status", "language", "interpreter_code", "is_source"]
         read_only_fields = fields
 

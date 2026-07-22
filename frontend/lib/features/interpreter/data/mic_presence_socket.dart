@@ -15,7 +15,7 @@ class MicStateEvent {
 }
 
 /// Relays "my mic is on/off" between interpreters sharing a channel (see
-/// ADR-008 and MicPresenceConsumer) - unlike ChatSocket this one does
+/// MicPresenceConsumer) - unlike ChatSocket this one does
 /// send, not just receive: [sendMicState] pushes this client's own
 /// mute/unmute, and every other interpreter connected to the same
 /// channel gets it back through [events]. [requestStatus] asks the

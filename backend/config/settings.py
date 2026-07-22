@@ -93,12 +93,16 @@ ASGI_APPLICATION = "config.asgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "kabin"),
-        "USER": os.environ.get("POSTGRES_USER", "kabin"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "kabin"),
-        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.environ.get("MYSQL_DB", "kabin"),
+        "USER": os.environ.get("MYSQL_USER", "kabin"),
+        "PASSWORD": os.environ.get("MYSQL_PASSWORD", "kabin"),
+        "HOST": os.environ.get("MYSQL_HOST", "localhost"),
+        "PORT": os.environ.get("MYSQL_PORT", "3306"),
+        # utf8mb4 (not MySQL's older default utf8, which is really only
+        # 3-byte utf8 and can't hold every Unicode codepoint) - needed for
+        # Turkish text and any future emoji, not just decoration.
+        "OPTIONS": {"charset": "utf8mb4"},
     }
 }
 
@@ -131,7 +135,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         # Join codes are short and guessable by design (see codes.py) -
         # this is the one public, unauthenticated lookup surface, so it
-        # gets its own rate limit. See ADR-002.
+        # gets its own rate limit.
         "session-lookup": "20/min",
         # A 6-digit code is brute-forceable given enough attempts - this
         # doesn't make it un-guessable, just slow enough that the email's

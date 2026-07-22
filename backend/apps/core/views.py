@@ -1,5 +1,5 @@
 """Infra endpoints: health check for uptime monitors / load balancers,
-plus the public language registry (see ADR-006)."""
+plus the public language registry."""
 
 from django.db import connections
 from django.db.utils import OperationalError

@@ -12,8 +12,8 @@ import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
 
 /// Authenticated entry point for claiming an interpreter channel - a
-/// code alone claims it (see ADR-003), so unlike the Listener flow
-/// there's no separate lookup step before joining.
+/// code alone claims it, so unlike the Listener flow there's no
+/// separate lookup step before joining.
 class InterpreterJoinScreen extends ConsumerStatefulWidget {
   const InterpreterJoinScreen({super.key});
 

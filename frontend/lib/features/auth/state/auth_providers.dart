@@ -18,7 +18,7 @@ final authSessionProvider = Provider<AuthSession>((ref) {
 });
 
 /// One shared [Dio] instance, wired with the token-refresh interceptor
-/// (see ADR-001 / DioClientFactory). Every repository in the app should
+/// (see DioClientFactory). Every repository in the app should
 /// go through this rather than constructing its own Dio.
 final dioProvider = Provider<Dio>((ref) {
   final authSession = ref.watch(authSessionProvider);
@@ -31,7 +31,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 /// The current account, or `null` if logged out. This is the one thing
 /// the router and every screen check to know "am I logged in, and as
-/// who" - see ADR-007.
+/// who".
 final authControllerProvider = AsyncNotifierProvider<AuthController, User?>(
   AuthController.new,
 );

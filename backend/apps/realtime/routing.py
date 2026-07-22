@@ -1,4 +1,4 @@
-"""WebSocket URL routing. See consumers.py and ADR-005."""
+"""WebSocket URL routing. See consumers.py."""
 
 from django.urls import re_path
 

@@ -7,7 +7,6 @@ import 'single_flight_refresh.dart';
 
 /// Builds the single Dio instance the whole app shares.
 ///
-/// See ADR-001 for the full design rationale; the short version:
 ///  - every request gets the in-memory access token attached
 ///  - a 401 triggers exactly one refresh call no matter how many requests
 ///    failed at once (SingleFlightRefresh dedupes them)
