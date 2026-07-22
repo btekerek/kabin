@@ -21,6 +21,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
 
+  bool _submitting = false;
+  Object? _submitError;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -32,17 +35,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authControllerProvider.notifier).register(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          username: _usernameController.text.trim(),
-        );
+    final email = _emailController.text.trim();
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).register(
+            email: email,
+            password: _passwordController.text,
+            username: _usernameController.text.trim(),
+          );
+      if (mounted) context.pushReplacement('/verify-email', extra: email);
+    } catch (error) {
+      setState(() => _submitError = error);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
-
     return Scaffold(
       appBar: AppBar(title: const KabinAppBarTitle('Create an account')),
       body: LayoutBuilder(
@@ -95,10 +108,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             : null,
                         onFieldSubmitted: (_) => _submit(),
                       ),
-                      if (authState.hasError) ...[
+                      if (_submitError != null) ...[
                         const SizedBox(height: 16),
                         Text(
-                          apiErrorMessage(authState.error as Object),
+                          apiErrorMessage(_submitError!),
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error),
                           textAlign: TextAlign.center,
@@ -106,8 +119,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ],
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: authState.isLoading ? null : _submit,
-                        child: authState.isLoading
+                        onPressed: _submitting ? null : _submit,
+                        child: _submitting
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
