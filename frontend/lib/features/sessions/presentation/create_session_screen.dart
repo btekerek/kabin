@@ -6,6 +6,8 @@ import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../domain/language.dart';
 import '../state/session_providers.dart';
 
@@ -40,12 +42,13 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final t = ref.read(appStringsProvider);
     if (_sourceLanguageCodes.isEmpty) {
-      setState(() => _submitError = 'Pick a source language.');
+      setState(() => _submitError = t.pickSourceLanguageError);
       return;
     }
     if (_targetLanguageCodes.isEmpty) {
-      setState(() => _submitError = 'Pick at least one target language.');
+      setState(() => _submitError = t.pickTargetLanguageError);
       return;
     }
 
@@ -103,10 +106,11 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
   @override
   Widget build(BuildContext context) {
     final languagesAsync = ref.watch(languagesProvider);
+    final t = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const KabinAppBarTitle('New session'),
+        title: KabinAppBarTitle(t.newSessionTitle),
         actions: const [
           LanguageMenu(),
           SizedBox(width: 4),
@@ -117,12 +121,12 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
       body: languagesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(apiErrorMessage(error))),
-        data: (languages) => _buildForm(languages),
+        data: (languages) => _buildForm(languages, t),
       ),
     );
   }
 
-  Widget _buildForm(List<Language> languages) {
+  Widget _buildForm(List<Language> languages, AppStrings t) {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
@@ -135,9 +139,9 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
               children: [
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Session name'),
+                  decoration: InputDecoration(labelText: t.sessionNameLabel),
                   validator: (value) => (value == null || value.isEmpty)
-                      ? 'Session name is required'
+                      ? t.sessionNameRequired
                       : null,
                 ),
                 const SizedBox(height: 16),
@@ -145,17 +149,17 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
                   controller: _descriptionController,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (optional)',
+                  decoration: InputDecoration(
+                    labelText: t.descriptionOptionalLabel,
                   ),
                 ),
                 const SizedBox(height: 16),
                 _LanguagePickerField(
-                  labelText: 'Source language',
+                  labelText: t.sourceLanguageLabel,
                   languages: languages,
                   selectedCodes: _sourceLanguageCodes,
                   onTap: () => _openLanguagePicker(
-                    title: 'Source language',
+                    title: t.sourceLanguageLabel,
                     languages: languages,
                     selectedCodes: _sourceLanguageCodes,
                     multiSelect: false,
@@ -163,11 +167,11 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
                 ),
                 const SizedBox(height: 16),
                 _LanguagePickerField(
-                  labelText: 'Target languages',
+                  labelText: t.targetLanguagesLabel,
                   languages: languages,
                   selectedCodes: _targetLanguageCodes,
                   onTap: () => _openLanguagePicker(
-                    title: 'Target languages',
+                    title: t.targetLanguagesLabel,
                     languages: languages,
                     selectedCodes: _targetLanguageCodes,
                     multiSelect: true,
@@ -206,7 +210,7 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('CREATE SESSION'),
+                      : Text(t.createSessionButton),
                 ),
               ],
             ),
@@ -221,7 +225,7 @@ class _CreateSessionScreenState extends ConsumerState<CreateSessionScreen> {
 /// styled exactly like a normal outlined input (same decoration as
 /// Session name/Description above it), but read-only: tapping opens the
 /// near-fullscreen picker sheet instead of a keyboard.
-class _LanguagePickerField extends StatelessWidget {
+class _LanguagePickerField extends ConsumerWidget {
   const _LanguagePickerField({
     required this.labelText,
     required this.languages,
@@ -235,7 +239,8 @@ class _LanguagePickerField extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     final selectedNames = [
       for (final language in languages)
         if (selectedCodes.contains(language.code)) language.name,
@@ -251,7 +256,9 @@ class _LanguagePickerField extends StatelessWidget {
           suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
         child: Text(
-          selectedNames.isEmpty ? 'Search language' : selectedNames.join(', '),
+          selectedNames.isEmpty
+              ? t.searchLanguageHint
+              : selectedNames.join(', '),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: selectedNames.isEmpty
@@ -275,7 +282,7 @@ class _LanguagePickerField extends StatelessWidget {
 /// Mutates [selectedCodes] in place as rows are picked/checked - see
 /// _openLanguagePicker above for why that's simpler than threading a
 /// return value through every possible dismiss path.
-class _LanguagePickerSheet extends StatefulWidget {
+class _LanguagePickerSheet extends ConsumerStatefulWidget {
   const _LanguagePickerSheet({
     required this.title,
     required this.languages,
@@ -289,10 +296,11 @@ class _LanguagePickerSheet extends StatefulWidget {
   final bool multiSelect;
 
   @override
-  State<_LanguagePickerSheet> createState() => _LanguagePickerSheetState();
+  ConsumerState<_LanguagePickerSheet> createState() =>
+      _LanguagePickerSheetState();
 }
 
-class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
+class _LanguagePickerSheetState extends ConsumerState<_LanguagePickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -321,6 +329,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     final filtered = _query.isEmpty
         ? widget.languages
         : widget.languages
@@ -353,7 +362,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                   ),
                   if (widget.multiSelect)
                     Text(
-                      '${widget.selectedCodes.length} selected',
+                      t.selectedCount(widget.selectedCodes.length),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                 ],
@@ -364,9 +373,9 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
               child: TextField(
                 controller: _searchController,
                 textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  hintText: 'Search language',
-                  prefixIcon: Icon(Icons.search),
+                decoration: InputDecoration(
+                  hintText: t.searchLanguageHint,
+                  prefixIcon: const Icon(Icons.search),
                 ),
                 onChanged: (value) =>
                     setState(() => _query = value.trim().toLowerCase()),
@@ -406,7 +415,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                   padding: const EdgeInsets.all(16),
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
+                    child: Text(t.okButton),
                   ),
                 ),
               )
