@@ -20,6 +20,18 @@ final languagesProvider = FutureProvider<List<Language>>((ref) {
   return ref.watch(sessionRepositoryProvider).languages();
 });
 
+/// code -> full name lookup derived from [languagesProvider], for
+/// screens that show a language's full name alongside its bare code
+/// (see LanguageLabel) - e.g. channel.language/session.sourceLanguage
+/// are always just a code like "TR", not enough on its own for someone
+/// unfamiliar with ISO codes to recognize. Empty until the registry
+/// resolves; LanguageLabel falls back to the bare code until then
+/// rather than blocking on the fetch.
+final languageNamesProvider = Provider<Map<String, String>>((ref) {
+  final languages = ref.watch(languagesProvider).valueOrNull ?? const [];
+  return {for (final language in languages) language.code: language.name};
+});
+
 /// The signed-in guide's own sessions (see SessionListCreateView's
 /// get_queryset - the backend already scopes this to request.user, so
 /// there's no client-side filtering to do here).

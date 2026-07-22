@@ -8,6 +8,7 @@ import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/language_menu.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../l10n/locale_providers.dart';
+import '../../sessions/presentation/language_label.dart';
 import '../data/listener_status_socket.dart';
 import '../state/listener_providers.dart';
 import 'listening_args.dart';
@@ -144,7 +145,7 @@ class _ListeningScreenState extends ConsumerState<ListeningScreen> {
                     for (final channel in widget.args.channels)
                       DropdownMenuItem(
                         value: channel.id,
-                        child: Text(channel.language),
+                        child: LanguageLabel(channel.language),
                       ),
                   ],
                   onChanged: _switching || _sessionEnded

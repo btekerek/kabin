@@ -16,6 +16,7 @@ import '../../chat/presentation/chat_fab.dart';
 import '../domain/channel.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
+import 'language_label.dart';
 
 class SessionDashboardScreen extends ConsumerWidget {
   const SessionDashboardScreen({super.key, required this.sessionId});
@@ -304,11 +305,13 @@ class _SessionCard extends ConsumerWidget {
                     children: [
                       Text(t.sourceLanguageLabel,
                           style: Theme.of(context).textTheme.labelMedium),
-                      Text(sourceLanguage,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      LanguageLabel(
+                        sourceLanguage,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
@@ -450,12 +453,14 @@ class _ChannelCodeCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(appStringsProvider);
+    final languageNames = ref.watch(languageNamesProvider);
+    final languageLabel = languageDisplayLabel(languageNames, channel.language);
     // Only non-source channels reach this widget (see targetChannels in
     // _DashboardBodyState.build) - those always carry a code.
     return _CodeCard(
-      label: t.channelCodeLabel(channel.language),
+      label: t.channelCodeLabel(languageLabel),
       code: channel.interpreterCode!,
-      description: t.channelCodeDescription(channel.language),
+      description: t.channelCodeDescription(languageLabel),
     );
   }
 }
