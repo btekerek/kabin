@@ -100,7 +100,7 @@ frontend/
   lib/
     core/        shared infra (API client, etc. — added with the auth slice)
     features/    per-role screens and flows
-    l10n/        single Dart string catalog (TR/EN/DE/FR/ES/AR)
+    l10n/        single Dart string catalog (EN/TR)
 docs/adr/        architecture decision records
 .github/workflows/ci.yml   backend + frontend CI
 ```

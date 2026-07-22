@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/state/auth_providers.dart';
+import '../../l10n/locale_providers.dart';
 
 enum _ProfileAction { profile, logout }
 
@@ -15,9 +16,10 @@ class ProfileMenu extends ConsumerWidget {
     final initial = (username != null && username.isNotEmpty)
         ? username[0].toUpperCase()
         : '?';
+    final t = ref.watch(appStringsProvider);
 
     return PopupMenuButton<_ProfileAction>(
-      tooltip: 'Account',
+      tooltip: t.account,
       onSelected: (action) {
         switch (action) {
           case _ProfileAction.profile:
@@ -26,21 +28,21 @@ class ProfileMenu extends ConsumerWidget {
             ref.read(authControllerProvider.notifier).logout();
         }
       },
-      itemBuilder: (context) => const [
+      itemBuilder: (context) => [
         PopupMenuItem(
           value: _ProfileAction.profile,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.person_outline),
-            title: Text('Profile'),
+            leading: const Icon(Icons.person_outline),
+            title: Text(t.profile),
           ),
         ),
         PopupMenuItem(
           value: _ProfileAction.logout,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.logout),
-            title: Text('Log out'),
+            leading: const Icon(Icons.logout),
+            title: Text(t.logOut),
           ),
         ),
       ],

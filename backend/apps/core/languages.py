@@ -2,8 +2,8 @@
 Registry of supported event content languages (see ADR-006).
 
 This is deliberately NOT the same thing as the app's own UI language
-(Turkish-only for now, via frontend/lib/l10n/ - see the README). This
-registry is about what languages a session can be spoken in and
+(English/Turkish for now, via frontend/lib/l10n/ - see the README).
+This registry is about what languages a session can be spoken in and
 interpreted into, which has to cover essentially any real-world
 language.
 
