@@ -13,32 +13,35 @@ jobs:
       run:
         working-directory: backend
     services:
-      postgres:
-        image: postgres:16
+      mysql:
+        image: mysql:8
         env:
-          POSTGRES_DB: kabin
-          POSTGRES_USER: kabin
-          POSTGRES_PASSWORD: kabin
+          MYSQL_DATABASE: kabin
+          MYSQL_USER: kabin
+          MYSQL_PASSWORD: kabin
+          MYSQL_ROOT_PASSWORD: root
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd "pg_isready -U kabin"
+          --health-cmd "mysqladmin ping -h localhost"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
       DJANGO_SECRET_KEY: ci-test-key
       DJANGO_DEBUG: "true"
-      POSTGRES_DB: kabin
-      POSTGRES_USER: kabin
-      POSTGRES_PASSWORD: kabin
-      POSTGRES_HOST: localhost
-      POSTGRES_PORT: "5432"
+      MYSQL_DB: kabin
+      MYSQL_USER: kabin
+      MYSQL_PASSWORD: kabin
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: "3306"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install MySQL client headers
+        run: sudo apt-get update && sudo apt-get install -y default-libmysqlclient-dev pkg-config
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Ruff lint
