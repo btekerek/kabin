@@ -16,6 +16,7 @@ void main() {
           {
             'id': 1,
             'session': 7,
+            'session_status': 'not_started',
             'language': 'EN',
             'interpreter_code': null,
             'is_source': true
@@ -23,6 +24,7 @@ void main() {
           {
             'id': 2,
             'session': 7,
+            'session_status': 'not_started',
             'language': 'TR',
             'interpreter_code': 'TR117733',
             'is_source': false
