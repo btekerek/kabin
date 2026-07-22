@@ -63,6 +63,19 @@ class AppStrings {
   String get listenTabLabel => _pick('Listen', 'Dinle');
   String get logInTabLabel => _pick('Log in', 'Giriş yap');
 
+  // Forgot/reset password screens
+  String get forgotPasswordPrompt =>
+      _pick('Forgot password?', 'Şifreni mi unuttun?');
+  String get forgotPasswordTitle => _pick('Forgot password', 'Şifremi unuttum');
+  String get forgotPasswordInstructions => _pick(
+      "Enter your email and we'll send you a code to reset your password.",
+      'E-postanı gir, şifreni sıfırlaman için bir kod gönderelim.');
+  String get sendResetCodeButton =>
+      _pick('SEND RESET CODE', 'SIFIRLAMA KODU GÖNDER');
+  String get resetPasswordTitle => _pick('Reset password', 'Şifreni sıfırla');
+  String get resetCodeLabel => _pick('Reset code', 'Sıfırlama kodu');
+  String get resetPasswordButton => _pick('RESET PASSWORD', 'ŞİFREYİ SIFIRLA');
+
   // Register screen
   String get createAccountTitle => _pick('Create an account', 'Hesap oluştur');
   String get emailLabel => _pick('Email', 'E-posta');

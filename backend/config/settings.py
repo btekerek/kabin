@@ -137,6 +137,9 @@ REST_FRAMEWORK = {
         # doesn't make it un-guessable, just slow enough that the email's
         # TTL (EMAIL_VERIFICATION_TTL_MINUTES) runs out first.
         "email-verification": "20/min",
+        # Same reasoning as email-verification above, applied to password
+        # reset codes (PASSWORD_RESET_TTL_MINUTES).
+        "password-reset": "20/min",
     },
 }
 
@@ -183,6 +186,7 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 EMAIL_VERIFICATION_TTL_MINUTES = int(os.environ.get("EMAIL_VERIFICATION_TTL_MINUTES", "15"))
+PASSWORD_RESET_TTL_MINUTES = int(os.environ.get("PASSWORD_RESET_TTL_MINUTES", "15"))
 
 SESSION_LISTENER_CAP_DEFAULT = int(os.environ.get("SESSION_LISTENER_CAP_DEFAULT", "500"))
 

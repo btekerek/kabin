@@ -4,32 +4,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
 import '../../../core/widgets/language_menu.dart';
+import '../../../core/widgets/password_field.dart';
 import '../../../l10n/locale_providers.dart';
 import '../state/auth_providers.dart';
 
-/// Shown right after registration - the account exists but is inactive
-/// until the 6-digit code just emailed to [email] is confirmed (see
-/// RegisterView/VerifyEmailView). On success, authControllerProvider
-/// flips to the logged-in state itself (verifyEmail behaves like
-/// login()), so the router's own redirect takes it from here - this
-/// screen doesn't navigate on success itself.
+/// Shown right after ForgotPasswordScreen - confirms the code just
+/// emailed to [email] (if an account exists for it) and sets a new
+/// password in the same step. On success, authControllerProvider flips
+/// to the logged-in state itself (confirmPasswordReset behaves like
+/// login()/verifyEmail()), so the router's own redirect takes it from
+/// here - this screen doesn't navigate on success itself.
 ///
-/// verifyEmail() goes through AsyncValue.guard like login() (not a
-/// throwing call like resendVerification()), so submit errors are read
-/// from authControllerProvider's AsyncError state directly - same as
-/// LoginForm/ResetPasswordScreen - rather than a local try/catch.
-class VerifyEmailScreen extends ConsumerStatefulWidget {
-  const VerifyEmailScreen({super.key, required this.email});
+/// confirmPasswordReset() goes through AsyncValue.guard like login()
+/// (not a throwing call like requestPasswordReset()/resendVerification()),
+/// so submit errors are read from authControllerProvider's AsyncError
+/// state directly - same as LoginForm - rather than a local try/catch.
+class ResetPasswordScreen extends ConsumerStatefulWidget {
+  const ResetPasswordScreen({super.key, required this.email});
 
   final String email;
 
   @override
-  ConsumerState<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+  ConsumerState<ResetPasswordScreen> createState() =>
+      _ResetPasswordScreenState();
 }
 
-class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
+class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   bool _resending = false;
   String? _resendMessage;
@@ -37,14 +41,17 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   @override
   void dispose() {
     _codeController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authControllerProvider.notifier).verifyEmail(
+    await ref.read(authControllerProvider.notifier).confirmPasswordReset(
           email: widget.email,
           code: _codeController.text.trim(),
+          newPassword: _newPasswordController.text,
         );
   }
 
@@ -56,7 +63,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     try {
       await ref
           .read(authControllerProvider.notifier)
-          .resendVerification(widget.email);
+          .requestPasswordReset(widget.email);
       if (mounted) {
         setState(
             () => _resendMessage = ref.read(appStringsProvider).resendCodeSent);
@@ -74,7 +81,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     final t = ref.watch(appStringsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: KabinAppBarTitle(t.verifyEmailTitle),
+        title: KabinAppBarTitle(t.resetPasswordTitle),
         actions: const [LanguageMenu()],
       ),
       body: LayoutBuilder(
@@ -106,12 +113,30 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                         maxLength: 6,
                         style: Theme.of(context).textTheme.headlineSmall,
                         decoration: InputDecoration(
-                          labelText: t.verificationCodeLabel,
+                          labelText: t.resetCodeLabel,
                           counterText: '',
                         ),
                         validator: (value) =>
                             (value == null || value.trim().length != 6)
                                 ? t.enterSixDigitCode
+                                : null,
+                      ),
+                      const SizedBox(height: 16),
+                      PasswordField(
+                        controller: _newPasswordController,
+                        labelText: t.newPasswordLabel,
+                        autofillHints: const [AutofillHints.newPassword],
+                        validator: (value) => (value == null || value.isEmpty)
+                            ? t.newPasswordRequired
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      PasswordField(
+                        controller: _confirmPasswordController,
+                        labelText: t.confirmNewPasswordLabel,
+                        validator: (value) =>
+                            value != _newPasswordController.text
+                                ? t.passwordsDoNotMatch
                                 : null,
                         onFieldSubmitted: (_) => _submit(),
                       ),
@@ -134,7 +159,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : Text(t.verifyButton),
+                            : Text(t.resetPasswordButton),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
