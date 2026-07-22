@@ -153,4 +153,45 @@ class AppStrings {
   String get createSessionButton => _pick('CREATE SESSION', 'OTURUM OLUŞTUR');
   String selectedCount(int count) => _pick('$count selected', '$count seçildi');
   String get okButton => _pick('OK', 'TAMAM');
+
+  // Shared across interpreter/listener broadcast+listen screens
+  String get cancelButton => _pick('CANCEL', 'İPTAL');
+  String get leaveButton => _pick('LEAVE', 'AYRIL');
+  String get connectFailedMessage => _pick(
+      'Could not connect. Check your connection and try again.',
+      'Bağlanılamadı. Bağlantını kontrol edip tekrar dene.');
+  String get sessionEndedBannerMessage =>
+      _pick('This session has ended.', 'Bu oturum sona erdi.');
+  String get connectingLabel => _pick('Connecting...', 'Bağlanıyor...');
+  String get connectionFailedLabel =>
+      _pick('Connection failed', 'Bağlantı başarısız');
+  String get disconnectedLabel => _pick('Disconnected', 'Bağlantı kesildi');
+
+  // Interpreter join screen
+  String get joinAsInterpreterTitle =>
+      _pick('Join as interpreter', 'Çevirmen olarak katıl');
+  String get channelCodeInputLabel => _pick('Channel code', 'Kanal kodu');
+  String get joinChannelButton => _pick('JOIN CHANNEL', 'KANALA KATIL');
+
+  // Broadcasting screen
+  String get anotherInterpreterLiveTitle =>
+      _pick('Another interpreter is live', 'Başka bir çevirmen yayında');
+  String get anotherInterpreterLiveMessage => _pick(
+      'Someone else is already broadcasting on this channel. Listeners will hear you both at once if you turn your mic on.',
+      'Bu kanalda zaten başka biri yayın yapıyor. Mikrofonunu açarsan dinleyiciler ikinizi de aynı anda duyar.');
+  String get turnOnAnywayButton => _pick('TURN ON ANYWAY', 'YİNE DE AÇ');
+  String switchLanguageError(String message) => _pick(
+      'Could not switch language: $message', 'Dil değiştirilemedi: $message');
+  String switchRelayError(String message) => _pick(
+      'Could not switch relay: $message', 'Kaynak değiştirilemedi: $message');
+  String get relayAudioFailedMessage => _pick(
+      'Could not hear the relay audio. Check your connection and try again.',
+      'Kaynak sesi duyulamadı. Bağlantını kontrol edip tekrar dene.');
+  String leaveError(String message) =>
+      _pick('Could not leave: $message', 'Ayrılınamadı: $message');
+  String get connectedLabel => _pick('Connected', 'Bağlandı');
+  String get broadcastingLabel => _pick('Broadcasting', 'Yayında');
+  String get sourceDropdownLabel => _pick('Source', 'Kaynak');
+  String get targetDropdownLabel => _pick('Target', 'Hedef');
+  String get chatLabel => _pick('Chat', 'Sohbet');
 }
