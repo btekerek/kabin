@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../l10n/locale_providers.dart';
 
 /// A password TextFormField with a built-in show/hide toggle (eye icon).
 /// Owns its own obscure/visible state internally so every password field
 /// in the app (login, register, confirm) gets the toggle for free without
 /// each screen re-managing a bool.
-class PasswordField extends StatefulWidget {
+class PasswordField extends ConsumerStatefulWidget {
   const PasswordField({
     super.key,
     required this.controller,
@@ -21,14 +24,15 @@ class PasswordField extends StatefulWidget {
   final ValueChanged<String>? onFieldSubmitted;
 
   @override
-  State<PasswordField> createState() => _PasswordFieldState();
+  ConsumerState<PasswordField> createState() => _PasswordFieldState();
 }
 
-class _PasswordFieldState extends State<PasswordField> {
+class _PasswordFieldState extends ConsumerState<PasswordField> {
   bool _obscure = true;
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return TextFormField(
       controller: widget.controller,
       obscureText: _obscure,
@@ -39,7 +43,7 @@ class _PasswordFieldState extends State<PasswordField> {
           icon: Icon(_obscure
               ? Icons.visibility_outlined
               : Icons.visibility_off_outlined),
-          tooltip: _obscure ? 'Show password' : 'Hide password',
+          tooltip: _obscure ? t.showPasswordTooltip : t.hidePasswordTooltip,
           onPressed: () => setState(() => _obscure = !_obscure),
         ),
       ),

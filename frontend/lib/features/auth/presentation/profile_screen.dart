@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/password_field.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/locale_providers.dart';
 import '../state/auth_providers.dart';
 
 /// Reached from the account dropdown on HomeScreen. Shows the avatar, a
@@ -47,8 +49,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _comingSoon() {
+    final t = ref.read(appStringsProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming soon.')),
+      SnackBar(content: Text(t.comingSoon)),
     );
   }
 
@@ -69,7 +72,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .updateUsername(_usernameController.text.trim());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username updated.')),
+          SnackBar(content: Text(ref.read(appStringsProvider).usernameUpdated)),
         );
       }
     } catch (error) {
@@ -86,11 +89,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final initial = (username != null && username.isNotEmpty)
         ? username[0].toUpperCase()
         : '?';
+    final t = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const KabinAppBarTitle('Profile'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        title: KabinAppBarTitle(t.profile),
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -141,7 +150,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                Text('USERNAME',
+                Text(t.usernameSectionHeader,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: Theme.of(context).colorScheme.outline)),
                 const SizedBox(height: 12),
@@ -152,11 +161,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       TextFormField(
                         controller: _usernameController,
-                        decoration:
-                            const InputDecoration(labelText: 'Username'),
+                        decoration: InputDecoration(labelText: t.usernameLabel),
                         validator: (value) =>
                             (value == null || value.trim().isEmpty)
-                                ? 'Username is required'
+                                ? t.usernameRequired
                                 : null,
                       ),
                       if (_usernameError != null) ...[
@@ -178,13 +186,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('SAVE USERNAME'),
+                            : Text(t.saveUsername),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 32),
-                Text('CHANGE PASSWORD',
+                Text(t.changePasswordSectionHeader,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: Theme.of(context).colorScheme.outline)),
                 const SizedBox(height: 12),
@@ -195,32 +203,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       PasswordField(
                         controller: _currentPasswordController,
-                        labelText: 'Current password',
+                        labelText: t.currentPasswordLabel,
                         validator: (value) => (value == null || value.isEmpty)
-                            ? 'Current password is required'
+                            ? t.currentPasswordRequired
                             : null,
                       ),
                       const SizedBox(height: 16),
                       PasswordField(
                         controller: _newPasswordController,
-                        labelText: 'New password',
+                        labelText: t.newPasswordLabel,
                         validator: (value) => (value == null || value.isEmpty)
-                            ? 'New password is required'
+                            ? t.newPasswordRequired
                             : null,
                       ),
                       const SizedBox(height: 16),
                       PasswordField(
                         controller: _confirmPasswordController,
-                        labelText: 'Confirm new password',
+                        labelText: t.confirmNewPasswordLabel,
                         validator: (value) =>
                             value != _newPasswordController.text
-                                ? 'Passwords do not match'
+                                ? t.passwordsDoNotMatch
                                 : null,
                       ),
                       const SizedBox(height: 24),
                       FilledButton(
                         onPressed: _submitPasswordChange,
-                        child: const Text('UPDATE PASSWORD'),
+                        child: Text(t.updatePassword),
                       ),
                     ],
                   ),

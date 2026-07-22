@@ -93,6 +93,13 @@ class UserSerializer(serializers.ModelSerializer):
     email stay read-only either way.
     """
 
+    # Same reasoning as RegisterSerializer.email/username above: without
+    # validators=[], ModelSerializer auto-attaches a UniqueValidator to
+    # this unique=True model field, which fires before (and instead of)
+    # validate_username() below - producing a generic MISSING_FIELDS
+    # instead of our USERNAME_IN_USE code.
+    username = serializers.CharField(max_length=150, validators=[])
+
     class Meta:
         model = User
         fields = ["id", "email", "username"]

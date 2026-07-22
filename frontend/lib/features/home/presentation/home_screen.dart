@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/locale_providers.dart';
 
 /// Post-login landing screen. There's no fixed account role (see
 /// features/auth/domain/user.dart) - any logged in user can create a
@@ -16,10 +18,16 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
       appBar: AppBar(
         title: const KabinAppBarTitle('Kabin'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -33,13 +41,13 @@ class HomeScreen extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: () => context.push('/sessions'),
                   icon: const Icon(Icons.mic_outlined),
-                  label: const Text('CREATE / MANAGE A SESSION'),
+                  label: Text(t.createManageSessionButton),
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: () => context.push('/interpret'),
                   icon: const Icon(Icons.headset_mic_outlined),
-                  label: const Text('JOIN AS INTERPRETER'),
+                  label: Text(t.joinAsInterpreterButton),
                 ),
               ],
             ),

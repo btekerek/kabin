@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/agora/agora_channel_controller.dart';
 import '../../../core/agora/agora_join_result.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../data/listener_status_socket.dart';
 import '../state/listener_providers.dart';
 import 'listening_args.dart';
@@ -114,8 +117,12 @@ class _ListeningScreenState extends ConsumerState<ListeningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
-      appBar: AppBar(title: KabinAppBarTitle(widget.args.sessionName)),
+      appBar: AppBar(
+        title: KabinAppBarTitle(widget.args.sessionName),
+        actions: const [LanguageMenu()],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
@@ -128,7 +135,7 @@ class _ListeningScreenState extends ConsumerState<ListeningScreen> {
                   const _EndedBanner(),
                   const SizedBox(height: 24),
                 ],
-                Text('Listening in',
+                Text(t.listeningInLabel,
                     style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 4),
                 DropdownButton<int>(
@@ -151,19 +158,19 @@ class _ListeningScreenState extends ConsumerState<ListeningScreen> {
                   stream: _controller.statusStream,
                   initialData: _controller.status,
                   builder: (context, snapshot) =>
-                      Text(_statusLabel(snapshot.data)),
+                      Text(_statusLabel(t, snapshot.data)),
                 ),
                 if (_connectError != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    'Could not connect. Check your connection and try again.',
+                    t.connectFailedMessage,
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                     textAlign: TextAlign.center,
                   ),
                 ],
                 const SizedBox(height: 24),
-                OutlinedButton(onPressed: _leave, child: const Text('LEAVE')),
+                OutlinedButton(onPressed: _leave, child: Text(t.leaveButton)),
               ],
             ),
           ),
@@ -172,28 +179,29 @@ class _ListeningScreenState extends ConsumerState<ListeningScreen> {
     );
   }
 
-  String _statusLabel(AgoraConnectionStatus? status) {
-    if (_sessionEnded) return 'Session ended';
+  String _statusLabel(AppStrings t, AgoraConnectionStatus? status) {
+    if (_sessionEnded) return t.sessionEndedStatusLabel;
     switch (status) {
       case AgoraConnectionStatus.connecting:
-        return 'Connecting...';
+        return t.connectingLabel;
       case AgoraConnectionStatus.connected:
-        return 'Listening';
+        return t.listeningStatusLabel;
       case AgoraConnectionStatus.failed:
-        return 'Connection failed';
+        return t.connectionFailedLabel;
       case AgoraConnectionStatus.disconnected:
       case null:
-        return 'Disconnected';
+        return t.disconnectedLabel;
     }
   }
 }
 
-class _EndedBanner extends StatelessWidget {
+class _EndedBanner extends ConsumerWidget {
   const _EndedBanner();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final t = ref.watch(appStringsProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -202,7 +210,7 @@ class _EndedBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        'This session has ended.',
+        t.sessionEndedBannerMessage,
         textAlign: TextAlign.center,
         style: TextStyle(color: scheme.onErrorContainer),
       ),

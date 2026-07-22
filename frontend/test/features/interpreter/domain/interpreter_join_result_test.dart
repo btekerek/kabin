@@ -16,6 +16,7 @@ void main() {
         'channel': {
           'id': 2,
           'session': 7,
+          'session_status': 'not_started',
           'language': 'TR',
           'interpreter_code': 'TR117733',
           'is_source': false,
@@ -57,6 +58,7 @@ void main() {
         channel: const Channel(
           id: 2,
           sessionId: 7,
+          sessionStatus: 'not_started',
           language: 'TR',
           interpreterCode: 'TR117733',
           isSource: false,

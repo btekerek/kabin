@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
+import '../../../l10n/locale_providers.dart';
 import '../state/auth_providers.dart';
 
 /// Shown right after registration - the account exists but is inactive
@@ -62,8 +64,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       await ref
           .read(authControllerProvider.notifier)
           .resendVerification(widget.email);
-      if (mounted)
-        setState(() => _resendMessage = 'Code sent - check your inbox.');
+      if (mounted) {
+        setState(
+            () => _resendMessage = ref.read(appStringsProvider).resendCodeSent);
+      }
     } catch (error) {
       if (mounted) setState(() => _resendMessage = apiErrorMessage(error));
     } finally {
@@ -73,8 +77,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
-      appBar: AppBar(title: const KabinAppBarTitle('Verify your email')),
+      appBar: AppBar(
+        title: KabinAppBarTitle(t.verifyEmailTitle),
+        actions: const [LanguageMenu()],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -92,7 +100,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'We sent a 6-digit code to ${widget.email}.',
+                        t.codeSentMessage(widget.email),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
@@ -103,13 +111,13 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                         textAlign: TextAlign.center,
                         maxLength: 6,
                         style: Theme.of(context).textTheme.headlineSmall,
-                        decoration: const InputDecoration(
-                          labelText: 'Verification code',
+                        decoration: InputDecoration(
+                          labelText: t.verificationCodeLabel,
                           counterText: '',
                         ),
                         validator: (value) =>
                             (value == null || value.trim().length != 6)
-                                ? 'Enter the 6-digit code'
+                                ? t.enterSixDigitCode
                                 : null,
                         onFieldSubmitted: (_) => _submit(),
                       ),
@@ -132,12 +140,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('VERIFY'),
+                            : Text(t.verifyButton),
                       ),
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: _resending ? null : _resend,
-                        child: const Text("Didn't get a code? Resend"),
+                        child: Text(t.resendCodePrompt),
                       ),
                       if (_resendMessage != null) ...[
                         const SizedBox(height: 8),

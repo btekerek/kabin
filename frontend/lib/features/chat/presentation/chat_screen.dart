@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../../auth/state/auth_providers.dart';
 import '../data/chat_socket.dart';
 import '../domain/chat_target.dart';
@@ -63,12 +66,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final channelController = _channelController;
     final currentUserId = ref.read(authControllerProvider).valueOrNull?.id;
+    final t = ref.watch(appStringsProvider);
 
     if (channelController == null) {
       return Scaffold(
         appBar: AppBar(
           title: KabinAppBarTitle(widget.args.title),
-          actions: const [ProfileMenu(), SizedBox(width: 4)],
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
         ),
         body: _ChatPane(
             controller: _generalController, currentUserId: currentUserId),
@@ -80,9 +89,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: KabinAppBarTitle(widget.args.title),
-          actions: const [ProfileMenu(), SizedBox(width: 4)],
-          bottom: const TabBar(
-            tabs: [Tab(text: 'GENERAL'), Tab(text: 'CHANNEL')],
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
+          bottom: TabBar(
+            tabs: [Tab(text: t.generalTabLabel), Tab(text: t.channelTabLabel)],
           ),
         ),
         body: TabBarView(
@@ -101,17 +115,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 /// The message list + input box for one [ChatController]. Split out from
 /// ChatScreen so an interpreter's General and Channel tabs can each show
 /// their own independently-scrolling pane over the same screen.
-class _ChatPane extends StatefulWidget {
+class _ChatPane extends ConsumerStatefulWidget {
   const _ChatPane({required this.controller, required this.currentUserId});
 
   final ChatController controller;
   final int? currentUserId;
 
   @override
-  State<_ChatPane> createState() => _ChatPaneState();
+  ConsumerState<_ChatPane> createState() => _ChatPaneState();
 }
 
-class _ChatPaneState extends State<_ChatPane> {
+class _ChatPaneState extends ConsumerState<_ChatPane> {
   final _bodyController = TextEditingController();
   final _scrollController = ScrollController();
 
@@ -182,6 +196,7 @@ class _ChatPaneState extends State<_ChatPane> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     final leadingCount = _loadingOlder ? 1 : 0;
     final itemCount = leadingCount + _messages.length + _pending.length;
     return Column(
@@ -192,7 +207,7 @@ class _ChatPaneState extends State<_ChatPane> {
           child: itemCount == 0
               ? Center(
                   child: Text(
-                    'No messages yet',
+                    t.noMessagesYet,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.outline),
                   ),
@@ -248,7 +263,7 @@ class _ChatPaneState extends State<_ChatPane> {
                     Expanded(
                       child: TextField(
                         controller: _bodyController,
-                        decoration: const InputDecoration(hintText: 'Message'),
+                        decoration: InputDecoration(hintText: t.messageHint),
                         onSubmitted: (_) => _send(),
                       ),
                     ),
@@ -268,16 +283,17 @@ class _ChatPaneState extends State<_ChatPane> {
   }
 }
 
-class _StatusBanner extends StatelessWidget {
+class _StatusBanner extends ConsumerWidget {
   const _StatusBanner({required this.status});
 
   final ChatConnectionStatus status;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     final label = status == ChatConnectionStatus.connecting
-        ? 'Connecting...'
-        : 'Connection lost';
+        ? t.connectingLabel
+        : t.connectionLostLabel;
     return Container(
       width: double.infinity,
       color: Theme.of(context).colorScheme.errorContainer,
@@ -295,14 +311,15 @@ class _StatusBanner extends StatelessWidget {
 /// accent color, everyone else's sit left-aligned in a neutral tint with
 /// a sender label above - makes it possible to scan a fast-moving thread
 /// without reading every label.
-class _MessageTile extends StatelessWidget {
+class _MessageTile extends ConsumerWidget {
   const _MessageTile({required this.message, required this.isMine});
 
   final ChatMessage message;
   final bool isMine;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -318,7 +335,7 @@ class _MessageTile extends StatelessWidget {
                   isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 if (!isMine) ...[
-                  Text(_senderLabel(message),
+                  Text(_senderLabel(t, message),
                       style: Theme.of(context).textTheme.labelSmall),
                   const SizedBox(height: 2),
                 ],
@@ -358,14 +375,14 @@ class _MessageTile extends StatelessWidget {
     );
   }
 
-  String _senderLabel(ChatMessage message) {
+  String _senderLabel(AppStrings t, ChatMessage message) {
     final name = message.senderName;
     if (name != null && name.isNotEmpty) return name;
     switch (message.senderKind) {
       case SenderKind.guide:
-        return 'GUIDE';
+        return t.guideSenderLabel;
       case SenderKind.interpreter:
-        return 'INTERPRETER';
+        return t.interpreterSenderLabel;
     }
   }
 
@@ -383,7 +400,7 @@ class _MessageTile extends StatelessWidget {
 /// sending it looks like a normal message with no failure UI; if the
 /// send failed, it shows the error plus retry/dismiss so the user never
 /// has to retype it.
-class _PendingTile extends StatelessWidget {
+class _PendingTile extends ConsumerWidget {
   const _PendingTile({
     required this.pending,
     required this.onRetry,
@@ -395,7 +412,8 @@ class _PendingTile extends StatelessWidget {
   final VoidCallback onDismiss;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     final scheme = Theme.of(context).colorScheme;
     final error = pending.error;
     return Padding(
@@ -434,22 +452,22 @@ class _PendingTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 if (error == null)
                   Text(
-                    'Sending...',
+                    t.sendingLabel,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.outline, fontStyle: FontStyle.italic),
                   )
                 else ...[
                   Text(
-                    'Failed to send: ${apiErrorMessage(error)}',
+                    t.failedToSendMessage(apiErrorMessage(error)),
                     style: TextStyle(color: scheme.error, fontSize: 12),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextButton(
-                          onPressed: onRetry, child: const Text('RETRY')),
+                          onPressed: onRetry, child: Text(t.retryButton)),
                       TextButton(
-                          onPressed: onDismiss, child: const Text('DISMISS')),
+                          onPressed: onDismiss, child: Text(t.dismissButton)),
                     ],
                   ),
                 ],

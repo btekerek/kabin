@@ -7,7 +7,9 @@ import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/big_mic_button.dart';
 import '../../../core/widgets/content_column.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/locale_providers.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../../chat/presentation/chat_fab.dart';
@@ -24,11 +26,17 @@ class SessionDashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionAsync = ref.watch(sessionDetailProvider(sessionId));
     final session = sessionAsync.valueOrNull;
+    final t = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const KabinAppBarTitle('Session'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        title: KabinAppBarTitle(t.sessionScreenTitle),
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: sessionAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -41,7 +49,7 @@ class SessionDashboardScreen extends ConsumerWidget {
               args: ChatArgs(
                 sessionId: session.id,
                 accessToken: ref.read(authSessionProvider).accessToken ?? '',
-                title: 'Chat - ${session.name}',
+                title: t.chatTitle(session.name),
               ),
             ),
     );
@@ -174,6 +182,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
     final busy = _togglingSession || detailState.isLoading;
     final targetChannels =
         session.channels.where((channel) => !channel.isSource).toList();
+    final t = ref.watch(appStringsProvider);
 
     return ContentColumn(
       maxWidth: 640,
@@ -202,14 +211,14 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
           ),
           const SizedBox(height: 24),
           _CodeCard(
-            label: 'LISTENER CODE',
+            label: t.listenerCodeLabel,
             code: session.listenerCode,
-            description: 'One code for all languages, share with listeners.',
+            description: t.listenerCodeDescription,
           ),
           if (targetChannels.isNotEmpty) ...[
             const SizedBox(height: 24),
             Text(
-              'INTERPRETER CHANNEL CODES',
+              t.interpreterChannelCodesHeader,
               style: Theme.of(context)
                   .textTheme
                   .labelMedium
@@ -231,7 +240,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
                   style: OutlinedButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error),
                   onPressed: busy ? null : _endSession,
-                  child: const Text('END SESSION'),
+                  child: Text(t.endSessionButton),
                 ),
             ],
           ),
@@ -252,7 +261,7 @@ class _DashboardBodyState extends ConsumerState<_DashboardBody> {
 /// toggle that both starts/stops the session and takes the guide's mic
 /// live/off with it - this replaces the previous Start/Stop/End +
 /// Go Live/Mute/Stop broadcasting six-button spread.
-class _SessionCard extends StatelessWidget {
+class _SessionCard extends ConsumerWidget {
   const _SessionCard({
     required this.sourceLanguage,
     required this.status,
@@ -276,8 +285,9 @@ class _SessionCard extends StatelessWidget {
   final VoidCallback onMicTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ended = status == SessionStatus.ended;
+    final t = ref.watch(appStringsProvider);
 
     return Card(
       child: Padding(
@@ -292,7 +302,7 @@ class _SessionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Source language',
+                      Text(t.sourceLanguageLabel,
                           style: Theme.of(context).textTheme.labelMedium),
                       Text(sourceLanguage,
                           style: Theme.of(context)
@@ -309,11 +319,11 @@ class _SessionCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('Start / stop session',
+                  child: Text(t.startStopSessionLabel,
                       style: Theme.of(context).textTheme.titleSmall),
                 ),
                 if (ended)
-                  Text('Ended',
+                  Text(t.statusEnded,
                       style: TextStyle(
                           color: Theme.of(context).colorScheme.outline))
                 else
@@ -351,29 +361,30 @@ class _SessionCard extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
+class _StatusPill extends ConsumerWidget {
   const _StatusPill({required this.status});
 
   final SessionStatus status;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final t = ref.watch(appStringsProvider);
     final (background, foreground, label) = switch (status) {
       SessionStatus.notStarted => (
           scheme.surfaceContainerHighest,
           scheme.onSurfaceVariant,
-          'NOT STARTED',
+          t.statusPillNotStarted,
         ),
       SessionStatus.active => (
           scheme.primaryContainer,
           scheme.onPrimaryContainer,
-          'ACTIVE',
+          t.statusPillActive,
         ),
       SessionStatus.ended => (
           scheme.errorContainer,
           scheme.onErrorContainer,
-          'ENDED',
+          t.statusPillEnded,
         ),
     };
 
@@ -392,7 +403,7 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _CodeCard extends StatelessWidget {
+class _CodeCard extends ConsumerWidget {
   const _CodeCard(
       {required this.label, required this.code, required this.description});
 
@@ -401,7 +412,8 @@ class _CodeCard extends StatelessWidget {
   final String description;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -420,7 +432,7 @@ class _CodeCard extends StatelessWidget {
             ),
             IconButton(
               icon: const Icon(Icons.copy),
-              tooltip: 'Copy',
+              tooltip: t.copyTooltip,
               onPressed: () => Clipboard.setData(ClipboardData(text: code)),
             ),
           ],
@@ -430,20 +442,20 @@ class _CodeCard extends StatelessWidget {
   }
 }
 
-class _ChannelCodeCard extends StatelessWidget {
+class _ChannelCodeCard extends ConsumerWidget {
   const _ChannelCodeCard({required this.channel});
 
   final Channel channel;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     // Only non-source channels reach this widget (see targetChannels in
     // _DashboardBodyState.build) - those always carry a code.
     return _CodeCard(
-      label: '${channel.language} channel code'.toUpperCase(),
+      label: t.channelCodeLabel(channel.language),
       code: channel.interpreterCode!,
-      description:
-          'Interpreters translating into ${channel.language} join with this code.',
+      description: t.channelCodeDescription(channel.language),
     );
   }
 }

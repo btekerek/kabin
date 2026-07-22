@@ -12,6 +12,12 @@ import 'package:dio/dio.dart';
 /// went wrong" reads as "retry and hope," which wastes the user's time
 /// on a class of failure retrying can't fix.
 String apiErrorMessage(Object error) {
+  // Some screens (e.g. CreateSessionScreen's client-side validation)
+  // stash a plain String as their "error" alongside real caught
+  // exceptions, so the same _submitError field and display line can
+  // handle both - without this branch, a String error always fell
+  // through to the generic fallback below instead of showing itself.
+  if (error is String) return error;
   if (error is DioException) {
     final data = error.response?.data;
     if (data is Map && data['message'] is String) {

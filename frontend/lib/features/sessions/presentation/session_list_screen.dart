@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/content_column.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
 
@@ -15,11 +18,17 @@ class SessionListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionListProvider);
+    final t = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const KabinAppBarTitle('Your sessions'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        title: KabinAppBarTitle(t.yourSessionsTitle),
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: sessionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -28,7 +37,7 @@ class SessionListScreen extends ConsumerWidget {
           if (sessions.isEmpty) {
             return Center(
               child: Text(
-                'No sessions yet. Create one to get started.',
+                t.noSessionsYet,
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
@@ -55,38 +64,39 @@ class SessionListScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/sessions/create'),
         icon: const Icon(Icons.add),
-        label: const Text('NEW SESSION'),
+        label: Text(t.newSessionButton),
       ),
     );
   }
 }
 
-class _SessionTile extends StatelessWidget {
+class _SessionTile extends ConsumerWidget {
   const _SessionTile({required this.session});
 
   final Session session;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     return Card(
       child: ListTile(
         title: Text(session.name),
-        subtitle: Text(
-            'Code ${session.listenerCode} · ${_statusLabel(session.status)}'),
+        subtitle: Text(t.sessionCodeSubtitle(
+            session.listenerCode, _statusLabel(t, session.status))),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/sessions/${session.id}'),
       ),
     );
   }
 
-  String _statusLabel(SessionStatus status) {
+  String _statusLabel(AppStrings t, SessionStatus status) {
     switch (status) {
       case SessionStatus.notStarted:
-        return 'Not started';
+        return t.statusNotStarted;
       case SessionStatus.active:
-        return 'Active';
+        return t.statusActive;
       case SessionStatus.ended:
-        return 'Ended';
+        return t.statusEnded;
     }
   }
 }

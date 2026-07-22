@@ -8,7 +8,10 @@ import '../../../core/agora/agora_join_result.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/big_mic_button.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../../auth/state/auth_providers.dart';
 import '../../chat/presentation/chat_args.dart';
 import '../../chat/presentation/chat_fab.dart';
@@ -201,20 +204,20 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
   }
 
   Future<bool?> _confirmBroadcastOverMic() {
+    final t = ref.read(appStringsProvider);
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Another interpreter is live'),
-        content: const Text(
-            'Someone else is already broadcasting on this channel. Listeners will hear you both at once if you turn your mic on.'),
+        title: Text(t.anotherInterpreterLiveTitle),
+        content: Text(t.anotherInterpreterLiveMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('CANCEL'),
+            child: Text(t.cancelButton),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('TURN ON ANYWAY'),
+            child: Text(t.turnOnAnywayButton),
           ),
         ],
       ),
@@ -246,17 +249,23 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
       appBar: AppBar(
         title: KabinAppBarTitle(_channel.language),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       floatingActionButton: ChatFab(
         args: ChatArgs(
           sessionId: _channel.sessionId,
           channelId: _channel.id,
           accessToken: ref.read(authSessionProvider).accessToken ?? '',
-          title: 'Chat',
+          title: t.chatLabel,
         ),
       ),
       body: Center(
@@ -283,7 +292,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 if (_targetError != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Could not switch language: ${apiErrorMessage(_targetError!)}',
+                    t.switchLanguageError(apiErrorMessage(_targetError!)),
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                     textAlign: TextAlign.center,
@@ -292,7 +301,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 if (_relayError != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Could not switch relay: ${apiErrorMessage(_relayError!)}',
+                    t.switchRelayError(apiErrorMessage(_relayError!)),
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                     textAlign: TextAlign.center,
@@ -303,7 +312,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                   stream: _controller.primaryStatusStream,
                   initialData: _controller.primaryStatus,
                   builder: (context, snapshot) =>
-                      Text(_primaryStatusLabel(snapshot.data)),
+                      Text(_primaryStatusLabel(t, snapshot.data)),
                 ),
                 if (_relay != null)
                   StreamBuilder<AgoraConnectionStatus>(
@@ -317,7 +326,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                       return Padding(
                         padding: const EdgeInsets.only(top: 16),
                         child: Text(
-                          'Could not hear the relay audio. Check your connection and try again.',
+                          t.relayAudioFailedMessage,
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error),
                           textAlign: TextAlign.center,
@@ -328,7 +337,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 if (_connectError != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    'Could not connect. Check your connection and try again.',
+                    t.connectFailedMessage,
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                     textAlign: TextAlign.center,
@@ -337,7 +346,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 if (_leaveError != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    'Could not leave: ${apiErrorMessage(_leaveError!)}',
+                    t.leaveError(apiErrorMessage(_leaveError!)),
                     style:
                         TextStyle(color: Theme.of(context).colorScheme.error),
                     textAlign: TextAlign.center,
@@ -357,7 +366,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
                 const SizedBox(height: 32),
                 OutlinedButton(
                   onPressed: _leaving ? null : _leave,
-                  child: const Text('LEAVE'),
+                  child: Text(t.leaveButton),
                 ),
               ],
             ),
@@ -367,17 +376,17 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
     );
   }
 
-  String _primaryStatusLabel(AgoraConnectionStatus? status) {
+  String _primaryStatusLabel(AppStrings t, AgoraConnectionStatus? status) {
     switch (status) {
       case AgoraConnectionStatus.connecting:
-        return 'Connecting...';
+        return t.connectingLabel;
       case AgoraConnectionStatus.connected:
-        return _muted ? 'Connected' : 'Broadcasting';
+        return _muted ? t.connectedLabel : t.broadcastingLabel;
       case AgoraConnectionStatus.failed:
-        return 'Connection failed';
+        return t.connectionFailedLabel;
       case AgoraConnectionStatus.disconnected:
       case null:
-        return 'Disconnected';
+        return t.disconnectedLabel;
     }
   }
 }
@@ -387,7 +396,7 @@ class _BroadcastingScreenState extends ConsumerState<BroadcastingScreen> {
 /// interpreting (source language). Keyed by channel id rather than by
 /// [ListenerChannel] object identity, since the "current" value often
 /// comes from a different response than the options list.
-class _LanguagePickers extends StatelessWidget {
+class _LanguagePickers extends ConsumerWidget {
   const _LanguagePickers({
     required this.targetChannelId,
     required this.availableTargetChannels,
@@ -409,14 +418,15 @@ class _LanguagePickers extends StatelessWidget {
   final bool busy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         Expanded(
           child: _LanguageDropdown(
-            label: 'Source',
+            label: t.sourceDropdownLabel,
             value: relayChannelId,
             options: availableRelayChannels,
             onChanged: relayChannelId == null ? null : onRelayChanged,
@@ -426,7 +436,7 @@ class _LanguagePickers extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(
           child: _LanguageDropdown(
-            label: 'Target',
+            label: t.targetDropdownLabel,
             value: targetChannelId,
             options: availableTargetChannels,
             onChanged: onTargetChanged,
@@ -477,12 +487,13 @@ class _LanguageDropdown extends StatelessWidget {
   }
 }
 
-class _EndedBanner extends StatelessWidget {
+class _EndedBanner extends ConsumerWidget {
   const _EndedBanner();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final t = ref.watch(appStringsProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -491,7 +502,7 @@ class _EndedBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        'This session has ended.',
+        t.sessionEndedBannerMessage,
         textAlign: TextAlign.center,
         style: TextStyle(color: scheme.onErrorContainer),
       ),

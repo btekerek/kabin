@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
 import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
 import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/locale_providers.dart';
 import '../domain/interpreter_join_result.dart';
 import '../state/interpreter_providers.dart';
 import 'broadcasting_args.dart';
@@ -55,10 +57,16 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const KabinAppBarTitle('Join as interpreter'),
-        actions: const [ProfileMenu(), SizedBox(width: 4)],
+        title: KabinAppBarTitle(t.joinAsInterpreterTitle),
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -72,7 +80,8 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
                   controller: _codeController,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineSmall,
-                  decoration: const InputDecoration(labelText: 'Channel code'),
+                  decoration:
+                      InputDecoration(labelText: t.channelCodeInputLabel),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
@@ -91,7 +100,7 @@ class _InterpreterJoinScreenState extends ConsumerState<InterpreterJoinScreen> {
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('JOIN CHANNEL'),
+                      : Text(t.joinChannelButton),
                 ),
               ],
             ),
