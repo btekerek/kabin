@@ -1,6 +1,6 @@
 # Kabin
 
-Real-time event interpretation platform — a mobile-first app that puts the
+Real-time event interpretation platform, a mobile-first app that puts the
 interpretation booth of a conference into everyone's pocket. A session has
 one source language (the stage) and one or more target language channels.
 Three roles: Guide (session owner), Interpreter (joins a channel), and
@@ -11,7 +11,7 @@ model, i18n, operational rules). This README is the "clone to running" path.
 
 ## Stack
 
-- **Backend**: Django + Django REST Framework + PostgreSQL, JWT auth
+- **Backend**: Django + Django REST Framework + MySQL, JWT auth
   (djangorestframework-simplejwt, dual access/refresh tokens), Django
   Channels for WebSockets, drf-spectacular for OpenAPI docs.
 - **Frontend**: Flutter (mobile-first, Android first), `dio` for
@@ -23,7 +23,7 @@ model, i18n, operational rules). This README is the "clone to running" path.
 ## Prerequisites
 
 - Python 3.12+
-- PostgreSQL 16 (local install or Docker)
+- MySQL 8 (local install or Docker)
 - Flutter SDK (stable channel) — for the frontend
 - Node not required for this repo
 
@@ -37,8 +37,10 @@ pip install -r requirements-dev.txt
 
 cp .env.example .env            # fill in real values (see below)
 
-# Postgres: create a local database matching your .env values, e.g.
-#   createdb kabin
+# MySQL: create a local database + user matching your .env values, e.g.
+#   mysql -u root -p -e "CREATE DATABASE kabin CHARACTER SET utf8mb4; \
+#     CREATE USER 'kabin'@'localhost' IDENTIFIED BY 'kabin'; \
+#     GRANT ALL ON kabin.* TO 'kabin'@'localhost';"
 
 python manage.py migrate
 python manage.py createsuperuser  # optional, for /admin
@@ -100,7 +102,7 @@ frontend/
   lib/
     core/        shared infra (API client, etc. — added with the auth slice)
     features/    per-role screens and flows
-    l10n/        single Dart string catalog (TR/EN/DE/FR/ES/AR)
+    l10n/        single Dart string catalog (EN/TR)
 docs/adr/        architecture decision records
 .github/workflows/ci.yml   backend + frontend CI
 ```

@@ -1,0 +1,481 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/errors/api_error_message.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
+import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
+import '../../auth/state/auth_providers.dart';
+import '../data/chat_socket.dart';
+import '../domain/chat_target.dart';
+import '../domain/message.dart';
+import '../state/chat_controller.dart';
+import '../state/chat_providers.dart';
+import 'chat_args.dart';
+
+/// One screen reused by Guide and Interpreter. A guide only ever sees
+/// the general (session-wide) scope; an interpreter also has their own
+/// channel's scope, shown as a second tab (see ChatArgs.channelId).
+/// Owns one ChatController per scope shown, for the screen's lifetime -
+/// same pattern as ListeningScreen/BroadcastingScreen owning an
+/// AgoraChannelController.
+class ChatScreen extends ConsumerStatefulWidget {
+  const ChatScreen({super.key, required this.args});
+
+  final ChatArgs args;
+
+  @override
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends ConsumerState<ChatScreen> {
+  late final ChatController _generalController;
+  ChatController? _channelController;
+
+  @override
+  void initState() {
+    super.initState();
+    final repository = ref.read(chatRepositoryProvider);
+
+    _generalController = ChatController(
+      repository: repository,
+      target: ChatTarget.general(widget.args.sessionId),
+    )..connect(widget.args.accessToken);
+
+    final channelId = widget.args.channelId;
+    if (channelId != null) {
+      _channelController = ChatController(
+        repository: repository,
+        target: ChatTarget.channel(channelId),
+      )..connect(widget.args.accessToken);
+    }
+  }
+
+  @override
+  void dispose() {
+    _generalController.dispose();
+    _channelController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final channelController = _channelController;
+    final currentUserId = ref.read(authControllerProvider).valueOrNull?.id;
+    final t = ref.watch(appStringsProvider);
+
+    if (channelController == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: KabinAppBarTitle(widget.args.title),
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
+        ),
+        body: _ChatPane(
+            controller: _generalController, currentUserId: currentUserId),
+      );
+    }
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: KabinAppBarTitle(widget.args.title),
+          actions: const [
+            LanguageMenu(),
+            SizedBox(width: 4),
+            ProfileMenu(),
+            SizedBox(width: 4),
+          ],
+          bottom: TabBar(
+            tabs: [Tab(text: t.generalTabLabel), Tab(text: t.channelTabLabel)],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _ChatPane(
+                controller: _generalController, currentUserId: currentUserId),
+            _ChatPane(
+                controller: channelController, currentUserId: currentUserId),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The message list + input box for one [ChatController]. Split out from
+/// ChatScreen so an interpreter's General and Channel tabs can each show
+/// their own independently-scrolling pane over the same screen.
+class _ChatPane extends ConsumerStatefulWidget {
+  const _ChatPane({required this.controller, required this.currentUserId});
+
+  final ChatController controller;
+  final int? currentUserId;
+
+  @override
+  ConsumerState<_ChatPane> createState() => _ChatPaneState();
+}
+
+class _ChatPaneState extends ConsumerState<_ChatPane> {
+  final _bodyController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  List<ChatMessage> _messages = const [];
+  List<PendingMessage> _pending = const [];
+  ChatConnectionStatus _status = ChatConnectionStatus.connecting;
+  bool _loadingOlder = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.messagesStream.listen((messages) {
+      if (mounted) setState(() => _messages = messages);
+    });
+    widget.controller.pendingStream.listen((pending) {
+      if (mounted) setState(() => _pending = pending);
+    });
+    widget.controller.statusStream.listen((status) {
+      if (mounted) setState(() => _status = status);
+    });
+    _scrollController.addListener(_onScroll);
+  }
+
+  /// Messages render oldest-first (index 0 at the top), so scrolling
+  /// toward minScrollExtent is scrolling toward the oldest message
+  /// currently loaded - that's when it's time to fetch the page before it.
+  void _onScroll() {
+    const threshold = 200.0;
+    if (_scrollController.position.pixels <=
+        _scrollController.position.minScrollExtent + threshold) {
+      _loadOlder();
+    }
+  }
+
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !widget.controller.hasMoreHistory) return;
+    setState(() => _loadingOlder = true);
+    try {
+      await widget.controller.loadOlder();
+    } finally {
+      if (mounted) setState(() => _loadingOlder = false);
+    }
+  }
+
+  void _send() {
+    final body = _bodyController.text.trim();
+    if (body.isEmpty) return;
+    _bodyController.clear();
+    // Failure is already captured on the PendingMessage itself (see
+    // ChatController.send/_attemptSend) and rendered by _PendingTile's
+    // retry/dismiss controls - catching here just stops the rethrow from
+    // becoming an unhandled async error, it isn't swallowing anything
+    // the user can't already see and act on.
+    unawaited(widget.controller.send(body: body));
+  }
+
+  bool _isMine(ChatMessage message) {
+    final currentUserId = widget.currentUserId;
+    return currentUserId != null && message.senderId == currentUserId;
+  }
+
+  @override
+  void dispose() {
+    _bodyController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(appStringsProvider);
+    final leadingCount = _loadingOlder ? 1 : 0;
+    final itemCount = leadingCount + _messages.length + _pending.length;
+    return Column(
+      children: [
+        if (_status != ChatConnectionStatus.connected)
+          _StatusBanner(status: _status),
+        Expanded(
+          child: itemCount == 0
+              ? Center(
+                  child: Text(
+                    t.noMessagesYet,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.outline),
+                  ),
+                )
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: itemCount,
+                      itemBuilder: (context, index) {
+                        if (_loadingOlder && index == 0) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: SizedBox(
+                                height: 16,
+                                width: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          );
+                        }
+                        final adjusted = index - leadingCount;
+                        if (adjusted < _messages.length) {
+                          final message = _messages[adjusted];
+                          return _MessageTile(
+                            message: message,
+                            isMine: _isMine(message),
+                          );
+                        }
+                        final pending = _pending[adjusted - _messages.length];
+                        return _PendingTile(
+                          pending: pending,
+                          onRetry: () => widget.controller.retry(pending),
+                          onDismiss: () => widget.controller.dismiss(pending),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+        ),
+        SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _bodyController,
+                        decoration: InputDecoration(hintText: t.messageHint),
+                        onSubmitted: (_) => _send(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      icon: const Icon(Icons.send),
+                      onPressed: _send,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusBanner extends ConsumerWidget {
+  const _StatusBanner({required this.status});
+
+  final ChatConnectionStatus status;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
+    final label = status == ChatConnectionStatus.connecting
+        ? t.connectingLabel
+        : t.connectionLostLabel;
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.errorContainer,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+      ),
+    );
+  }
+}
+
+/// Chat-app convention: your own messages sit right-aligned in the
+/// accent color, everyone else's sit left-aligned in a neutral tint with
+/// a sender label above - makes it possible to scan a fast-moving thread
+/// without reading every label.
+class _MessageTile extends ConsumerWidget {
+  const _MessageTile({required this.message, required this.isMine});
+
+  final ChatMessage message;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment:
+            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+            child: Column(
+              crossAxisAlignment:
+                  isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!isMine) ...[
+                  Text(_senderLabel(t, message),
+                      style: Theme.of(context).textTheme.labelSmall),
+                  const SizedBox(height: 2),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isMine
+                        ? scheme.primary
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(isMine ? 16 : 4),
+                      bottomRight: Radius.circular(isMine ? 4 : 16),
+                    ),
+                  ),
+                  child: Text(
+                    message.body,
+                    style: TextStyle(
+                        color: isMine ? scheme.onPrimary : scheme.onSurface),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _timeLabel(message.createdAt),
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: scheme.outline),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _senderLabel(AppStrings t, ChatMessage message) {
+    final name = message.senderName;
+    if (name != null && name.isNotEmpty) return name;
+    switch (message.senderKind) {
+      case SenderKind.guide:
+        return t.guideSenderLabel;
+      case SenderKind.interpreter:
+        return t.interpreterSenderLabel;
+    }
+  }
+
+  String _timeLabel(DateTime createdAt) {
+    final local = createdAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+}
+
+/// A message this screen just tried to send - shown immediately, before
+/// (or instead of) server confirmation. Always rendered on "my" side
+/// since only the sender ever sees their own pending state. While
+/// sending it looks like a normal message with no failure UI; if the
+/// send failed, it shows the error plus retry/dismiss so the user never
+/// has to retype it.
+class _PendingTile extends ConsumerWidget {
+  const _PendingTile({
+    required this.pending,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  final PendingMessage pending;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final error = pending.error;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.72),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: error != null
+                        ? scheme.errorContainer
+                        : scheme.primary.withValues(alpha: 0.6),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(4),
+                    ),
+                  ),
+                  child: Text(
+                    pending.body,
+                    style: TextStyle(
+                        color: error != null
+                            ? scheme.onErrorContainer
+                            : scheme.onPrimary),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (error == null)
+                  Text(
+                    t.sendingLabel,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.outline, fontStyle: FontStyle.italic),
+                  )
+                else ...[
+                  Text(
+                    t.failedToSendMessage(apiErrorMessage(error)),
+                    style: TextStyle(color: scheme.error, fontSize: 12),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                          onPressed: onRetry, child: Text(t.retryButton)),
+                      TextButton(
+                          onPressed: onDismiss, child: Text(t.dismissButton)),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -2,8 +2,8 @@
 Interpreter channel-claiming flow: code -> claim -> Agora publisher token.
 
 Unlike listener join, these endpoints require a real authenticated
-Interpreter account (see ADR-003), so tests force_authenticate rather
-than hitting them anonymously.
+account - any account may claim a channel, so tests
+force_authenticate rather than hitting them anonymously.
 """
 
 import pytest
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -26,7 +26,7 @@ def guide():
 
 @pytest.fixture
 def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+    user = User(email="interpreter@example.com", username="interpreter")
     user.set_password("password123!")
     user.save()
     return user
@@ -34,11 +34,7 @@ def interpreter():
 
 @pytest.fixture
 def other_interpreter():
-    user = User(
-        email="other-interpreter@example.com",
-        username="other-interpreter",
-        role=User.Role.INTERPRETER,
-    )
+    user = User(email="other-interpreter@example.com", username="other-interpreter")
     user.set_password("password123!")
     user.save()
     return user
@@ -61,7 +57,7 @@ def session_with_channels(guide):
 
 
 def test_interpreter_can_claim_channel(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -69,18 +65,22 @@ def test_interpreter_can_claim_channel(interpreter, session_with_channels):
     assert response.status_code == status.HTTP_200_OK
     assert (
         response.data["agora_channel_name"]
-        == f"kabin-ch-{session_with_channels['channels'][0]['id']}"
+        == f"kabin-ch-{session_with_channels['channels'][1]['id']}"
     )
     assert response.data["agora_token"]
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
 
 
-def test_non_interpreter_cannot_claim_channel(guide, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+def test_session_owner_can_also_claim_a_channel(guide, session_with_channels):
+    # There's no fixed account role (see permissions.py) - the same
+    # account that owns a session (its guide) can also claim one of its
+    # own channels as an interpreter.
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(guide).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_200_OK
+    assert ChannelInterpreter.objects.filter(interpreter=guide).exists()
 
 
 def test_unknown_code_returns_channel_not_found(interpreter):
@@ -92,7 +92,7 @@ def test_unknown_code_returns_channel_not_found(interpreter):
 
 
 def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     client = _authed_client(interpreter)
 
     first = client.post("/api/channels/join/", {"interpreter_code": code}, format="json")
@@ -102,16 +102,16 @@ def test_same_interpreter_rejoining_refreshes_without_conflict(interpreter, sess
     assert second.status_code == status.HTTP_200_OK
     assert (
         ChannelInterpreter.objects.filter(
-            channel_id=session_with_channels["channels"][0]["id"]
+            channel_id=session_with_channels["channels"][1]["id"]
         ).count()
         == 1
     )
 
 
-def test_different_interpreter_rejected_while_channel_staffed(
+def test_second_interpreter_can_also_claim_a_staffed_channel(
     interpreter, other_interpreter, session_with_channels
 ):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -120,8 +120,13 @@ def test_different_interpreter_rejected_while_channel_staffed(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
 
-    assert response.status_code == status.HTTP_409_CONFLICT
-    assert response.data["code"] == "CHANNEL_ALREADY_STAFFED"
+    assert response.status_code == status.HTTP_200_OK
+    assert (
+        ChannelInterpreter.objects.filter(
+            channel_id=session_with_channels["channels"][1]["id"]
+        ).count()
+        == 2
+    )
 
 
 def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
@@ -129,7 +134,7 @@ def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
     guide_client.post(f"/api/sessions/{session_with_channels['id']}/start/")
     guide_client.post(f"/api/sessions/{session_with_channels['id']}/end/")
 
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -139,7 +144,7 @@ def test_join_rejects_ended_session(guide, interpreter, session_with_channels):
 
 
 def test_leave_releases_claim(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     client = _authed_client(interpreter)
     client.post("/api/channels/join/", {"interpreter_code": code}, format="json")
 
@@ -150,7 +155,7 @@ def test_leave_releases_claim(interpreter, session_with_channels):
 
 
 def test_leave_is_a_no_op_when_not_holding_the_channel(interpreter, session_with_channels):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     response = _authed_client(interpreter).post(
         "/api/channels/leave/", {"interpreter_code": code}, format="json"
     )
@@ -160,7 +165,7 @@ def test_leave_is_a_no_op_when_not_holding_the_channel(interpreter, session_with
 def test_leave_does_not_release_someone_elses_claim(
     interpreter, other_interpreter, session_with_channels
 ):
-    code = session_with_channels["channels"][0]["interpreter_code"]
+    code = session_with_channels["channels"][1]["interpreter_code"]
     _authed_client(interpreter).post(
         "/api/channels/join/", {"interpreter_code": code}, format="json"
     )
@@ -170,3 +175,35 @@ def test_leave_does_not_release_someone_elses_claim(
     )
 
     assert ChannelInterpreter.objects.filter(interpreter=interpreter).exists()
+
+
+def test_claiming_a_target_channel_defaults_relay_to_source(interpreter, session_with_channels):
+    # channels[0] is the source (en); channels[1] is the target (tr) - see
+    # session_with_channels fixture, which mirrors SessionListCreateView's
+    # creation order.
+    source_channel = session_with_channels["channels"][0]
+    target_code = session_with_channels["channels"][1]["interpreter_code"]
+
+    response = _authed_client(interpreter).post(
+        "/api/channels/join/", {"interpreter_code": target_code}, format="json"
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    relay = response.data["relay"]
+    assert relay is not None
+    assert relay["agora_channel_name"] == f"kabin-ch-{source_channel['id']}"
+    assert relay["agora_token"]
+    assert relay["channel"]["id"] == source_channel["id"]
+    assert relay["channel"]["is_source"] is True
+    # ListenerChannelSerializer shape - no interpreter_code leaked to a
+    # channel that isn't this interpreter's own.
+    assert "interpreter_code" not in relay["channel"]
+
+
+def test_source_channel_has_no_interpreter_code_to_claim_with(interpreter, session_with_channels):
+    # There's no scenario where an interpreter relays the source channel
+    # into itself, so the source channel is never issued an
+    # interpreter_code at all (see models.py) - nothing to join with.
+    source_channel = session_with_channels["channels"][0]
+    assert source_channel["is_source"] is True
+    assert source_channel["interpreter_code"] is None

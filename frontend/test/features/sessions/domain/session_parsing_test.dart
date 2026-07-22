@@ -15,12 +15,16 @@ void main() {
         'channels': [
           {
             'id': 1,
+            'session': 7,
+            'session_status': 'not_started',
             'language': 'EN',
-            'interpreter_code': 'EN482913',
+            'interpreter_code': null,
             'is_source': true
           },
           {
             'id': 2,
+            'session': 7,
+            'session_status': 'not_started',
             'language': 'TR',
             'interpreter_code': 'TR117733',
             'is_source': false
@@ -33,6 +37,8 @@ void main() {
       expect(session.status, SessionStatus.notStarted);
       expect(session.channels, hasLength(2));
       expect(session.channels.first.isSource, isTrue);
+      expect(session.channels.first.interpreterCode, isNull);
+      expect(session.channels.last.interpreterCode, 'TR117733');
     });
 
     test('canStart/canStop/canEnd match the backend state machine', () {
@@ -55,11 +61,6 @@ void main() {
       expect(active.canStart, isFalse);
       expect(active.canStop, isTrue);
       expect(active.canEnd, isTrue);
-
-      final qaMode = withStatus('qa_mode');
-      expect(qaMode.canStart, isFalse);
-      expect(qaMode.canStop, isTrue);
-      expect(qaMode.canEnd, isTrue);
 
       final ended = withStatus('ended');
       expect(ended.canStart, isFalse);

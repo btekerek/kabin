@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kabin/core/auth/auth_session.dart';
 import 'package:kabin/core/auth/token_pair.dart';
+import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/domain/user.dart';
 import 'package:kabin/features/auth/state/auth_providers.dart';
 
@@ -14,7 +15,7 @@ void main() {
 
   setUp(() {
     fakeAuthRepository = FakeAuthRepository();
-    authSession = AuthSession(storage: FakeTokenStorage());
+    authSession = AuthSession(storage: TokenStorage());
     container = ProviderContainer(
       overrides: [
         authSessionProvider.overrideWithValue(authSession),
@@ -39,13 +40,14 @@ void main() {
     await container
         .read(authControllerProvider.future); // settle bootstrap (logged out)
 
-    const testUser = User(id: 1, email: 'guide@example.com', role: 'guide');
+    const testUser =
+        User(id: 1, email: 'guide@example.com', username: 'guide_person');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');
 
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'password123!',
         );
 
@@ -65,7 +67,7 @@ void main() {
     );
 
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'wrong',
         );
 
@@ -78,12 +80,13 @@ void main() {
       () async {
     await container.read(authControllerProvider.future);
 
-    const testUser = User(id: 1, email: 'guide@example.com', role: 'guide');
+    const testUser =
+        User(id: 1, email: 'guide@example.com', username: 'guide_person');
     fakeAuthRepository.userToReturn = testUser;
     fakeAuthRepository.loginTokens =
         const TokenPair(access: 'access-1', refresh: 'refresh-1');
     await container.read(authControllerProvider.notifier).login(
-          email: 'guide@example.com',
+          identifier: 'guide@example.com',
           password: 'password123!',
         );
 

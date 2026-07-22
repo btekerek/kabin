@@ -1,34 +1,3 @@
-"""
-Sessions app: the core event domain.
-
-A Session belongs to one Guide and always has exactly one source Channel
-(is_source=True, the stage feed) plus one or more target Channels. Both
-the session's listener_code and each channel's interpreter_code are short,
-human-typeable join codes - deliberately guessable, per the project spec,
-so lookups must be rate-limited (that's enforced at the view layer, not
-here).
-
-Status is a small state machine, not a free-form field: not_started ->
-active <-> qa_mode -> ended, with ended treated as genuinely terminal (see
-Session.can_transition_to).
-
-ListenerSession tracks anonymous listener joins (see ADR-002) - one row
-per (session, listener_uuid), used to enforce the listener cap and to
-let a listener switch channels without losing/re-spending their spot.
-
-ChannelInterpreter tracks which interpreter currently owns a channel
-(see ADR-003) - one row per channel, since exactly one interpreter may
-broadcast into a channel at a time.
-
-RaiseHandEntry is the Q&A queue (see ADR-004) - who's waiting to be
-granted the floor. `Session.approved_listener_uuid` (below) is who
-currently *has* the floor; it's a single field, not a table, because
-only one listener can hold it at a time.
-
-Message is chat (see ADR-005) - one table for all three sender kinds,
-since chat rendering needs them interleaved in a single timeline anyway.
-"""
-
 from django.conf import settings
 from django.db import models
 
@@ -37,15 +6,14 @@ class Session(models.Model):
     class Status(models.TextChoices):
         NOT_STARTED = "not_started", "Not started"
         ACTIVE = "active", "Active"
-        QA_MODE = "qa_mode", "Q&A"
         ENDED = "ended", "Ended"
 
     # Legal transitions, enforced server-side so a client bug can never
-    # walk a session back out of "ended".
+    # walk a session back out of "ended". not_started -> ended is allowed
+    # so a session that's never gone live can still be ended/cancelled.
     _ALLOWED_TRANSITIONS = {
-        Status.NOT_STARTED: {Status.ACTIVE},
-        Status.ACTIVE: {Status.QA_MODE, Status.NOT_STARTED, Status.ENDED},
-        Status.QA_MODE: {Status.ACTIVE, Status.NOT_STARTED, Status.ENDED},
+        Status.NOT_STARTED: {Status.ACTIVE, Status.ENDED},
+        Status.ACTIVE: {Status.NOT_STARTED, Status.ENDED},
         Status.ENDED: set(),
     }
 
@@ -53,10 +21,10 @@ class Session(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sessions"
     )
     name = models.CharField(max_length=200)
+    description = models.TextField(max_length=2000, blank=True, default="")
     source_language = models.CharField(max_length=10)
     listener_code = models.CharField(max_length=20, unique=True, db_index=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NOT_STARTED)
-    approved_listener_uuid = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -72,7 +40,13 @@ class Session(models.Model):
 class Channel(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="channels")
     language = models.CharField(max_length=10)
-    interpreter_code = models.CharField(max_length=20, unique=True, db_index=True)
+    # Null for the source channel: nobody joins the source with a code -
+    # listeners join the whole session via the listener PIN, and
+    # interpreters join their own target channel via its code. Only
+    # target (is_source=False) channels ever get one.
+    interpreter_code = models.CharField(
+        max_length=20, unique=True, db_index=True, null=True, blank=True
+    )
     is_source = models.BooleanField(default=False)
 
     class Meta:
@@ -84,12 +58,12 @@ class Channel(models.Model):
 
     @property
     def agora_channel_name(self) -> str:
-        """Stable, opaque Agora channel identity - see ADR-002."""
+        """Stable, opaque Agora channel identity."""
         return f"kabin-ch-{self.id}"
 
 
 class ListenerSession(models.Model):
-    """One row per listener who has ever joined a session (see ADR-002).
+    """One row per listener who has ever joined a session.
 
     `channel` is which language they're currently listening to; joining
     again with the same `listener_uuid` updates this row rather than
@@ -114,65 +88,49 @@ class ListenerSession(models.Model):
 
 
 class ChannelInterpreter(models.Model):
-    """The interpreter currently broadcasting into a channel (see ADR-003).
-
-    `channel` is a OneToOneField, not a ForeignKey: exactly one
-    interpreter may hold a channel at a time. Claiming/releasing is
-    handled in the join/leave views, not here.
-    """
-
-    channel = models.OneToOneField(
-        Channel, on_delete=models.CASCADE, related_name="interpreter_claim"
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, related_name="interpreter_claims"
     )
     interpreter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="channel_claims"
     )
     joined_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["channel", "interpreter"], name="unique_interpreter_claim_per_channel"
+            )
+        ]
+
     def __str__(self):
         return f"{self.interpreter} on {self.channel}"
 
 
-class RaiseHandEntry(models.Model):
-    """One row per listener currently waiting in the Q&A queue (ADR-004).
-
-    Ordered by `created_at` (FIFO). Raising a hand while already queued
-    is a no-op at the view layer, not enforced here beyond the unique
-    constraint preventing a duplicate row.
-    """
-
-    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="raised_hands")
-    listener_uuid = models.UUIDField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["session", "listener_uuid"], name="unique_raised_hand_per_session"
-            )
-        ]
-        ordering = ["created_at", "id"]
-
-    def __str__(self):
-        return f"{self.listener_uuid} waiting in {self.session_id}"
-
-
 class Message(models.Model):
-    """A single chat message (see ADR-005).
+    """A single chat message. Listeners are never chat participants -
+    only the guide (session owner) and interpreters (ChannelInterpreter
+    claim holders) can send/read.
 
-    `sender_kind` discriminates which of `sender` (guide/interpreter,
-    a real User) or `sender_listener_uuid` (listener, anonymous) is
-    populated - exactly one of the two, matching whichever identity
-    model that sender kind uses everywhere else in this app.
+    `channel` is null for a "general" message (guide + every interpreter
+    in the session) or set for a message scoped to one channel (only the
+    interpreter(s) holding a claim on that channel - not the guide, not
+    interpreters on other channels). This lets interpreters sharing a
+    channel coordinate privately alongside the session-wide general chat.
     """
 
     class SenderKind(models.TextChoices):
         GUIDE = "guide", "Guide"
         INTERPRETER = "interpreter", "Interpreter"
-        LISTENER = "listener", "Listener"
 
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="messages")
+    channel = models.ForeignKey(
+        Channel, on_delete=models.CASCADE, null=True, blank=True, related_name="messages"
+    )
     sender_kind = models.CharField(max_length=20, choices=SenderKind.choices)
+    # Nullable at the DB level only to avoid a NOT NULL migration against
+    # any pre-existing rows - every message created from here on always
+    # sets it, since listeners can no longer send at all.
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -180,7 +138,6 @@ class Message(models.Model):
         blank=True,
         related_name="sent_messages",
     )
-    sender_listener_uuid = models.UUIDField(null=True, blank=True)
     body = models.TextField(max_length=2000)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -188,4 +145,5 @@ class Message(models.Model):
         ordering = ["created_at", "id"]
 
     def __str__(self):
-        return f"{self.sender_kind} message in {self.session_id}"
+        scope = f"channel {self.channel_id}" if self.channel_id else "general"
+        return f"{self.sender_kind} message ({scope}) in session {self.session_id}"

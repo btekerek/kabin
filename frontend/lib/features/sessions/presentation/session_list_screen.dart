@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/api_error_message.dart';
-import '../../auth/state/auth_providers.dart';
+import '../../../core/widgets/content_column.dart';
+import '../../../core/widgets/kabin_app_bar_title.dart';
+import '../../../core/widgets/language_menu.dart';
+import '../../../core/widgets/profile_menu.dart';
+import '../../../l10n/app_strings.dart';
+import '../../../l10n/locale_providers.dart';
 import '../domain/session.dart';
 import '../state/session_providers.dart';
 
@@ -13,16 +18,16 @@ class SessionListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionListProvider);
+    final t = ref.watch(appStringsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your sessions'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-          ),
+        title: KabinAppBarTitle(t.yourSessionsTitle),
+        actions: const [
+          LanguageMenu(),
+          SizedBox(width: 4),
+          ProfileMenu(),
+          SizedBox(width: 4),
         ],
       ),
       body: sessionsAsync.when(
@@ -30,15 +35,28 @@ class SessionListScreen extends ConsumerWidget {
         error: (error, _) => Center(child: Text(apiErrorMessage(error))),
         data: (sessions) {
           if (sessions.isEmpty) {
-            return const Center(
-                child: Text('No sessions yet. Create one to get started.'));
+            return Center(
+              child: Text(
+                t.noSessionsYet,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.outline),
+              ),
+            );
           }
           return RefreshIndicator(
             onRefresh: () => ref.read(sessionListProvider.notifier).refresh(),
-            child: ListView.builder(
-              itemCount: sessions.length,
-              itemBuilder: (context, index) =>
-                  _SessionTile(session: sessions[index]),
+            child: ContentColumn(
+              maxWidth: 680,
+              padding: EdgeInsets.zero,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: sessions.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _SessionTile(session: sessions[index]),
+              ),
             ),
           );
         },
@@ -46,38 +64,39 @@ class SessionListScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/sessions/create'),
         icon: const Icon(Icons.add),
-        label: const Text('New session'),
+        label: Text(t.newSessionButton),
       ),
     );
   }
 }
 
-class _SessionTile extends StatelessWidget {
+class _SessionTile extends ConsumerWidget {
   const _SessionTile({required this.session});
 
   final Session session;
 
   @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(session.name),
-      subtitle: Text(
-          'Code ${session.listenerCode} · ${_statusLabel(session.status)}'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push('/sessions/${session.id}'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(appStringsProvider);
+    return Card(
+      child: ListTile(
+        title: Text(session.name),
+        subtitle: Text(t.sessionCodeSubtitle(
+            session.listenerCode, _statusLabel(t, session.status))),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/sessions/${session.id}'),
+      ),
     );
   }
 
-  String _statusLabel(SessionStatus status) {
+  String _statusLabel(AppStrings t, SessionStatus status) {
     switch (status) {
       case SessionStatus.notStarted:
-        return 'Not started';
+        return t.statusNotStarted;
       case SessionStatus.active:
-        return 'Active';
-      case SessionStatus.qaMode:
-        return 'Q&A';
+        return t.statusActive;
       case SessionStatus.ended:
-        return 'Ended';
+        return t.statusEnded;
     }
   }
 }

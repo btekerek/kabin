@@ -1,7 +1,7 @@
 """
 Session CRUD + lifecycle tests: atomic creation with channels, ownership
-enforcement, and the not_started/active/qa_mode/ended state machine
-(especially that ended is a one-way door).
+enforcement, and the not_started/active/ended state machine (especially
+that ended is a one-way door).
 """
 
 import pytest
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def guide():
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user
@@ -24,15 +24,15 @@ def guide():
 
 @pytest.fixture
 def other_guide():
-    user = User(email="other-guide@example.com", username="other-guide", role=User.Role.GUIDE)
+    user = User(email="other-guide@example.com", username="other-guide")
     user.set_password("password123!")
     user.save()
     return user
 
 
 @pytest.fixture
-def interpreter():
-    user = User(email="interpreter@example.com", username="interpreter", role=User.Role.INTERPRETER)
+def another_user():
+    user = User(email="another-user@example.com", username="another-user")
     user.set_password("password123!")
     user.save()
     return user
@@ -61,9 +61,15 @@ def test_guide_can_create_session_with_channels(guide):
     source_channels = [c for c in channels if c["is_source"]]
     assert len(source_channels) == 1
     assert source_channels[0]["language"] == "EN"
-    assert source_channels[0]["interpreter_code"].startswith("EN")
+    # No interpreter_code for the source channel - nobody joins it with a
+    # code (listeners use the listener PIN, interpreters join a target).
+    assert source_channels[0]["interpreter_code"] is None
 
-    target_languages = sorted(c["language"] for c in channels if not c["is_source"])
+    target_channels = [c for c in channels if not c["is_source"]]
+    for channel in target_channels:
+        assert channel["interpreter_code"].startswith(channel["language"])
+
+    target_languages = sorted(c["language"] for c in target_channels)
     assert target_languages == ["DE", "TR"]
 
 
@@ -87,14 +93,17 @@ def test_session_creation_rejects_duplicate_target_languages(guide):
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
-def test_interpreter_cannot_create_session(interpreter):
-    client = _authed_client(interpreter)
+def test_any_authenticated_user_can_create_a_session(another_user):
+    # There's no fixed account role (see permissions.py) - any logged in
+    # user can create a session and becomes its owner ("guide") by doing
+    # so.
+    client = _authed_client(another_user)
     response = client.post(
         "/api/sessions/",
         {"name": "Kabin Conf", "source_language": "en", "target_languages": ["tr"]},
         format="json",
     )
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_201_CREATED
 
 
 def test_list_only_returns_own_sessions(guide, other_guide):
@@ -165,6 +174,15 @@ def test_stop_returns_active_session_to_not_started(guide):
     response = client.post(f"/api/sessions/{session['id']}/stop/")
     assert response.status_code == status.HTTP_200_OK
     assert response.data["status"] == "not_started"
+
+
+def test_end_can_be_called_on_a_never_started_session(guide):
+    # A session that's never gone live can still be ended/cancelled -
+    # not_started -> ended is an explicitly allowed transition.
+    session = _create_session(guide)
+    response = _authed_client(guide).post(f"/api/sessions/{session['id']}/end/")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["status"] == "ended"
 
 
 def test_ended_session_is_terminal(guide):

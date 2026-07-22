@@ -18,7 +18,7 @@ final authSessionProvider = Provider<AuthSession>((ref) {
 });
 
 /// One shared [Dio] instance, wired with the token-refresh interceptor
-/// (see ADR-001 / DioClientFactory). Every repository in the app should
+/// (see DioClientFactory). Every repository in the app should
 /// go through this rather than constructing its own Dio.
 final dioProvider = Provider<Dio>((ref) {
   final authSession = ref.watch(authSessionProvider);
@@ -31,7 +31,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 /// The current account, or `null` if logged out. This is the one thing
 /// the router and every screen check to know "am I logged in, and as
-/// who" - see ADR-007.
+/// who".
 final authControllerProvider = AsyncNotifierProvider<AuthController, User?>(
   AuthController.new,
 );
@@ -67,11 +67,13 @@ class AuthController extends AsyncNotifier<User?> {
     }
   }
 
-  Future<void> login({required String email, required String password}) async {
+  /// [identifier] is either the account's email or username.
+  Future<void> login(
+      {required String identifier, required String password}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final tokens = await ref.read(authRepositoryProvider).login(
-            email: email,
+            identifier: identifier,
             password: password,
           );
       ref.read(authSessionProvider).updateTokens(tokens);
@@ -79,23 +81,86 @@ class AuthController extends AsyncNotifier<User?> {
     });
   }
 
-  /// This slice only builds Guide screens, so registration always
-  /// creates a Guide account - see the register screen for where that's
-  /// fixed. The Interpreter registration flow reuses this same method
-  /// with role: 'interpreter' once that slice exists.
+  /// There's no role to pick at registration - see HomeScreen for how
+  /// an account becomes a "guide" (creates a session) or "interpreter"
+  /// (claims a channel) per action instead.
+  ///
+  /// Doesn't log the account in - it's inactive until verifyEmail
+  /// succeeds (see RegisterView) - so like updateUsername, this throws
+  /// on failure rather than going through AsyncValue.guard: the shared
+  /// logged-in/out state shouldn't move either way over a registration
+  /// attempt, since the account isn't usable yet regardless of outcome.
+  /// RegisterScreen shows its own local busy/error state around this.
   Future<void> register({
     required String email,
     required String password,
-    required String role,
+    required String username,
+  }) {
+    return ref.read(authRepositoryProvider).register(
+          email: email,
+          password: password,
+          username: username,
+        );
+  }
+
+  /// Confirms the emailed code and logs the now-active account in
+  /// directly - verifyEmail's response is a token pair, exactly like
+  /// login's, so this mirrors login() rather than register().
+  Future<void> verifyEmail(
+      {required String email, required String code}) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final tokens = await ref
+          .read(authRepositoryProvider)
+          .verifyEmail(email: email, code: code);
+      ref.read(authSessionProvider).updateTokens(tokens);
+      return ref.read(authRepositoryProvider).me();
+    });
+  }
+
+  /// Fire-and-forget "send me another code" - throws on failure like
+  /// register()/updateUsername() so VerifyEmailScreen can show it
+  /// locally without disturbing the shared logged-out state.
+  Future<void> resendVerification(String email) {
+    return ref.read(authRepositoryProvider).resendVerification(email);
+  }
+
+  /// Fire-and-forget "send me a reset code" - throws on failure like
+  /// resendVerification() so ForgotPasswordScreen can show it locally
+  /// without disturbing the shared logged-out state.
+  Future<void> requestPasswordReset(String email) {
+    return ref.read(authRepositoryProvider).requestPasswordReset(email);
+  }
+
+  /// Confirms the emailed code and logs the account in directly -
+  /// confirmPasswordReset's response is a token pair, exactly like
+  /// verifyEmail's, so this mirrors verifyEmail() rather than register().
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final repository = ref.read(authRepositoryProvider);
-      await repository.register(email: email, password: password, role: role);
-      final tokens = await repository.login(email: email, password: password);
+      final tokens =
+          await ref.read(authRepositoryProvider).confirmPasswordReset(
+                email: email,
+                code: code,
+                newPassword: newPassword,
+              );
       ref.read(authSessionProvider).updateTokens(tokens);
-      return repository.me();
+      return ref.read(authRepositoryProvider).me();
     });
+  }
+
+  /// Throws on failure (e.g. USERNAME_IN_USE) rather than going through
+  /// AsyncValue.guard like login/register - the caller (ProfileScreen)
+  /// shows that error locally, and the shared auth state shouldn't flip
+  /// to AsyncError over a rejected edit while already logged in.
+  Future<void> updateUsername(String username) async {
+    final updated =
+        await ref.read(authRepositoryProvider).updateUsername(username);
+    state = AsyncData(updated);
   }
 
   Future<void> logout() async {

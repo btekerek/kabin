@@ -1,7 +1,7 @@
 """
-Language registry (see ADR-006): session creation only accepts real
-ISO 639-1 language codes, and the public /api/languages/ endpoint
-exposes the same registry clients validate against.
+Session creation only accepts real ISO 639-1 language codes, and the
+public /api/languages/ endpoint exposes the same registry clients
+validate against.
 """
 
 import pytest
@@ -13,7 +13,7 @@ from apps.accounts.models import User
 
 @pytest.fixture
 def guide(db):
-    user = User(email="guide@example.com", username="guide", role=User.Role.GUIDE)
+    user = User(email="guide@example.com", username="guide")
     user.set_password("password123!")
     user.save()
     return user

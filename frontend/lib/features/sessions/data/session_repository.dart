@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/agora/agora_join_result.dart';
 import '../domain/language.dart';
 import '../domain/session.dart';
 
@@ -7,6 +8,16 @@ class SessionRepository {
   SessionRepository(this._dio);
 
   final Dio _dio;
+
+  /// Publisher token for the session's own source channel - this is
+  /// what makes the Guide's live mic reach interpreters and any
+  /// listener who picks "original audio" (see SessionBroadcastView).
+  /// Deliberately separate from start()/stop()/end(): mic on/off is
+  /// independent of session status.
+  Future<AgoraJoinResult> broadcast(int id) async {
+    final response = await _dio.post('/api/sessions/$id/broadcast/');
+    return AgoraJoinResult.fromJson(response.data as Map<String, dynamic>);
+  }
 
   Future<List<Session>> listSessions() async {
     final response = await _dio.get('/api/sessions/');
@@ -17,11 +28,13 @@ class SessionRepository {
 
   Future<Session> createSession({
     required String name,
+    String description = '',
     required String sourceLanguage,
     required List<String> targetLanguages,
   }) async {
     final response = await _dio.post('/api/sessions/', data: {
       'name': name,
+      'description': description,
       'source_language': sourceLanguage,
       'target_languages': targetLanguages,
     });

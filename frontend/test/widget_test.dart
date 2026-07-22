@@ -1,13 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kabin/core/auth/auth_session.dart';
+import 'package:kabin/core/auth/token_storage.dart';
 import 'package:kabin/features/auth/state/auth_providers.dart';
 import 'package:kabin/main.dart';
 
 import 'helpers/fake_repositories.dart';
 
 void main() {
-  testWidgets('with no stored session, the app boots to the login screen',
+  testWidgets('with no stored session, the app boots to the landing screen',
       (tester) async {
     // Real network calls never reach a backend in this test - the fake
     // repository's default me() throws, which AuthController's
@@ -18,7 +19,7 @@ void main() {
       ProviderScope(
         overrides: [
           authSessionProvider
-              .overrideWithValue(AuthSession(storage: FakeTokenStorage())),
+              .overrideWithValue(AuthSession(storage: TokenStorage())),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         ],
         child: const KabinApp(),
@@ -26,6 +27,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Log in'), findsWidgets);
+    // Listen tab is shown first (see LandingScreen); Log in is the second
+    // tab. TabBar always builds both Tab labels regardless of which
+    // TabBarView page is currently active, so both are checkable here
+    // without switching tabs.
+    expect(find.text('Listen'), findsOneWidget);
+    expect(find.text('Log in'), findsOneWidget);
   });
 }
