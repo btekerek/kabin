@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Allows plain HTTP only to the deployment server's bare IP, since
+     DNS/HTTPS aren't set up yet. Everything else still requires HTTPS. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">31.57.156.129</domain>
+    </domain-config>
+</network-security-config>
